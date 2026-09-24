@@ -1,0 +1,16 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - run: cargo build --release
+      - run: cargo test
+  lint:
+    runs-on: macos-15
+    steps:
+      - run: cargo clippy -- -D warnings

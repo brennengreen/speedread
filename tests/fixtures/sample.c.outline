@@ -1,0 +1,6 @@
+Macro MAX 3-3 | #define MAX(a, b) ((a) > (b) ? (a) : (b))
+Struct point_t 5-8 | typedef struct
+Struct node 10-13 | struct node
+Function helper 15-15 | static int helper(int a);
+Function sum 17-25 ⋯19-24 | int sum(struct node *n)
+Function main 27-30 | int main(void)

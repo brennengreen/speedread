@@ -1,0 +1,212 @@
+[
+ {
+  "name": "orient: flask (4 top-level dirs)",
+  "base_calls": 5,
+  "base_tok": 299,
+  "sr_calls": 1,
+  "sr_tok": 1801
+ },
+ {
+  "name": "orient: gin (8 top-level dirs)",
+  "base_calls": 9,
+  "base_tok": 435,
+  "sr_calls": 1,
+  "sr_tok": 671
+ },
+ {
+  "name": "orient: ripgrep (8 top-level dirs)",
+  "base_calls": 9,
+  "base_tok": 232,
+  "sr_calls": 1,
+  "sr_tok": 2056
+ },
+ {
+  "name": "orient: zod (5 top-level dirs)",
+  "base_calls": 6,
+  "base_tok": 247,
+  "sr_calls": 1,
+  "sr_tok": 2388
+ },
+ {
+  "name": "orient: vscode (8 top-level dirs)",
+  "base_calls": 9,
+  "base_tok": 1009,
+  "sr_calls": 1,
+  "sr_tok": 3362
+ },
+ {
+  "name": "large file: defs.rs (8,161 lines)",
+  "base_calls": 5,
+  "base_tok": 105147,
+  "sr_calls": 1,
+  "sr_tok": 6321
+ },
+ {
+  "name": "large file: types.ts (5,138 lines)",
+  "base_calls": 3,
+  "base_tok": 67281,
+  "sr_calls": 1,
+  "sr_tok": 5917
+ },
+ {
+  "name": "large file: textModel.ts (2,745 lines)",
+  "base_calls": 2,
+  "base_tok": 39756,
+  "sr_calls": 1,
+  "sr_tok": 4989
+ },
+ {
+  "name": "large file: app.py (1,628 lines)",
+  "base_calls": 1,
+  "base_tok": 21264,
+  "sr_calls": 1,
+  "sr_tok": 3364
+ },
+ {
+  "name": "large file: context.go (1,544 lines)",
+  "base_calls": 1,
+  "base_tok": 19362,
+  "sr_calls": 1,
+  "sr_tok": 2797
+ },
+ {
+  "name": "large file: Session.swift (1,441 lines)",
+  "base_calls": 1,
+  "base_tok": 22184,
+  "sr_calls": 1,
+  "sr_tok": 2041
+ },
+ {
+  "name": "function Flask.url_for: read whole file",
+  "base_calls": 1,
+  "base_tok": 21264,
+  "sr_calls": 1,
+  "sr_tok": 1389
+ },
+ {
+  "name": "function Flask.url_for: grep file + exact window (best case)",
+  "base_calls": 2,
+  "base_tok": 2082,
+  "sr_calls": 1,
+  "sr_tok": 1389
+ },
+ {
+  "name": "function Context.AbortWithStatusJSON: read whole file",
+  "base_calls": 1,
+  "base_tok": 19362,
+  "sr_calls": 1,
+  "sr_tok": 115
+ },
+ {
+  "name": "function Context.AbortWithStatusJSON: grep file + exact window (best case)",
+  "base_calls": 2,
+  "base_tok": 388,
+  "sr_calls": 1,
+  "sr_tok": 115
+ },
+ {
+  "name": "function WalkParallel.run: read whole file",
+  "base_calls": 2,
+  "base_tok": 34449,
+  "sr_calls": 1,
+  "sr_tok": 143
+ },
+ {
+  "name": "function WalkParallel.run: grep file + exact window (best case)",
+  "base_calls": 2,
+  "base_tok": 581,
+  "sr_calls": 1,
+  "sr_tok": 143
+ },
+ {
+  "name": "function ZodString._parse: read whole file",
+  "base_calls": 3,
+  "base_tok": 67281,
+  "sr_calls": 1,
+  "sr_tok": 2686
+ },
+ {
+  "name": "function ZodString._parse: grep file + exact window (best case)",
+  "base_calls": 2,
+  "base_tok": 4863,
+  "sr_calls": 1,
+  "sr_tok": 2686
+ },
+ {
+  "name": "function TextModel.setValue: read whole file",
+  "base_calls": 2,
+  "base_tok": 39756,
+  "sr_calls": 1,
+  "sr_tok": 131
+ },
+ {
+  "name": "function TextModel.setValue: grep file + exact window (best case)",
+  "base_calls": 2,
+  "base_tok": 448,
+  "sr_calls": 1,
+  "sr_tok": 131
+ },
+ {
+  "name": "re-read after edit: defs.rs",
+  "base_calls": 5,
+  "base_tok": 105159,
+  "sr_calls": 1,
+  "sr_tok": 79
+ },
+ {
+  "name": "re-read after edit: types.ts",
+  "base_calls": 3,
+  "base_tok": 67291,
+  "sr_calls": 1,
+  "sr_tok": 74
+ },
+ {
+  "name": "re-read after edit: textModel.ts",
+  "base_calls": 2,
+  "base_tok": 39767,
+  "sr_calls": 1,
+  "sr_tok": 117
+ },
+ {
+  "name": "re-read after edit: app.py",
+  "base_calls": 1,
+  "base_tok": 21275,
+  "sr_calls": 1,
+  "sr_tok": 92
+ },
+ {
+  "name": "usages of url_for (flask, 47 files)",
+  "base_calls": 4,
+  "base_tok": 41840,
+  "sr_calls": 1,
+  "sr_tok": 4008
+ },
+ {
+  "name": "usages of AbortWithStatus (gin, 8 files)",
+  "base_calls": 4,
+  "base_tok": 25999,
+  "sr_calls": 1,
+  "sr_tok": 4490
+ },
+ {
+  "name": "usages of build_parallel (ripgrep, 3 files)",
+  "base_calls": 5,
+  "base_tok": 41579,
+  "sr_calls": 1,
+  "sr_tok": 2750
+ },
+ {
+  "name": "usages of safeParse (zod, 188 files)",
+  "base_calls": 4,
+  "base_tok": 134994,
+  "sr_calls": 1,
+  "sr_tok": 5992
+ },
+ {
+  "name": "follow log: 30 lines appended to 5,000",
+  "base_calls": 1,
+  "base_tok": 3969,
+  "sr_calls": 1,
+  "sr_tok": 692
+ }
+]

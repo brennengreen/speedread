@@ -1,0 +1,5 @@
+Module App\Http 2-2 | namespace App\Http;
+Class UserController 4-20 | class UserController extends Controller
+  Constructor UserController.__construct 7-12 ⋯9-11 | public function __construct(private Repo $repo)
+  Method UserController.show 14-19 ⋯16-18 | public function show(int $id): Response
+Function helper 22-26 ⋯23-25 | function helper($x)

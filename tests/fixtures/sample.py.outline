@@ -1,0 +1,7 @@
+Function top 7-14 ⋯9-14 | def top(a, b=2)
+Class Point 17-36 | class Point(Base)
+  Method Point.__init__ 23-26 ⋯24-26 | def __init__(self, x)
+  Method Point.norm 28-32 ⋯30-32 | def norm(self) -> float
+  Class Point.Inner 34-36 | class Inner
+    Method Point.Inner.m 35-36 | def m(self)
+Function fetch 39-42 ⋯40-42 | async def fetch(url: str) -> bytes

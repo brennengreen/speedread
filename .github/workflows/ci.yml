@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: test (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --all-targets
+      - run: SPEEDREAD_WALKER=portable cargo test --all-targets
+      - run: cargo build --release
+
+  release:
+    name: release binary (macOS arm64)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: |
+          cd target/release
+          tar czf speedread-${GITHUB_REF_NAME}-aarch64-apple-darwin.tar.gz speedread
+          shasum -a 256 speedread-*.tar.gz > sha256.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/release/speedread-*.tar.gz
+            target/release/sha256.txt

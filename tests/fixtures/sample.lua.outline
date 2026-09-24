@@ -1,0 +1,3 @@
+Function M.add 3-8 ⋯5-7 | function M.add(a, b)
+Function helper 10-14 ⋯11-13 | local function helper(x)
+Function M.run 16-20 ⋯17-19 | M.run = function(cfg)

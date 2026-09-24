@@ -1,0 +1,5 @@
+Class Greeter 5-10 | @interface Greeter : NSObject
+  Method Greeter.initWithName: 8-8 | - (instancetype)initWithName:(NSString *)name;
+  Method Greeter.greet 9-9 | - (void)greet;
+Interface Greeting 12-14 | @protocol Greeting <NSObject>
+  Method Greeting.greeting 13-13 | - (NSString *)greeting;

@@ -1,0 +1,8 @@
+Key name 2-2 | "name"
+Key version 3-3 | "version"
+Key scripts 4-7 | "scripts"
+  Key scripts.build 5-5 | "build"
+  Key scripts.test 6-6 | "test"
+Key dependencies 8-11 | "dependencies"
+  Key dependencies.react 9-9 | "react"
+  Key dependencies.zod 10-10 | "zod"

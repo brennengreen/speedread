@@ -1,0 +1,8 @@
+Module App.Services 3-33 | namespace App.Services
+  Class App.Services.UserService 5-25 | [Serializable] public class UserService : IUserService
+    Constructor App.Services.UserService.UserService 11-15 | public UserService(IRepo repo)
+    Property App.Services.UserService.Name 17-17 | public string Name
+    Method App.Services.UserService.FindAsync 19-24 ⋯21-23 | public async Task<User> FindAsync(int id)
+  Interface App.Services.IUserService 27-30 | public interface IUserService
+    Method App.Services.IUserService.FindAsync 29-29 | Task<User> FindAsync(int id);
+  Class App.Services.Point 32-32 | public record Point(int X, int Y);

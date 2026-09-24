@@ -1,0 +1,7 @@
+Key name 1-1 | name: CI
+Key on 2-5 | on:
+  Key on.push 3-4 | push:
+  Key on.pull_request 5-5 | pull_request:
+Key jobs 6-16 | jobs:
+  Key jobs.build 7-12 ⋯8-12 | build:
+  Key jobs.lint 13-16 ⋯14-16 | lint:

@@ -1,0 +1,7 @@
+Class UserService 3-26 | @Service public class UserService extends Base
+  Constructor UserService.UserService 8-12 ⋯9-11 | public UserService(Repo repo)
+  Method UserService.find 14-19 ⋯16-18 | public User find(long id)
+  Interface UserService.Listener 21-23 | interface Listener
+    Method UserService.Listener.onEvent 22-22 | void onEvent(String e);
+  Enum UserService.State 25-25 | enum State
+Class Point 28-28 | record Point(int x, int y)

@@ -1,0 +1,8 @@
+Struct Server 5-9 | type Server
+Interface Handler 11-14 | type Handler
+  Method Handler.Serve 12-12 | Serve(req string) error
+  Method Handler.Close 13-13 | Close()
+Type ID 16-16 | type ID = string
+Method Server.Start 18-23 ⋯20-22 | func (s *Server) Start() error
+Function NewServer 25-29 ⋯26-28 | func NewServer(port int) *Server
+Function main 31-35 ⋯32-34 | func main()

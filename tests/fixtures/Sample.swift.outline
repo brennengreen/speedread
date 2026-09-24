@@ -1,0 +1,11 @@
+Struct ContentView 3-19 | struct ContentView: View
+  Property ContentView.body 7-12 ⋯8-11 | var body: some View
+  Method ContentView.reset 14-18 ⋯15-17 | func reset()
+Interface Store 21-23 | protocol Store
+  Method Store.load 22-22 | func load() async throws -> [Item]
+Class Model 25-39 | final class Model: ObservableObject
+  Constructor Model.init 28-32 ⋯29-31 | init(store: Store)
+  Method Model.refresh 34-38 ⋯35-37 | func refresh() async
+Impl Model 41-47 | extension Model
+  Method Model.clear 42-46 ⋯43-45 | func clear()
+Enum Mode 49-49 | enum Mode

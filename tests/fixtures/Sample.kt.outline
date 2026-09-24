@@ -1,0 +1,8 @@
+Class UserRepo 3-18 | class UserRepo(private val db: Db) : Repo
+  Method UserRepo.find 5-9 ⋯6-8 | fun find(id: Long): User?
+  Class UserRepo.companion object 11-17 | companion object
+    Method UserRepo.companion object.create 12-16 ⋯13-15 | fun create(): UserRepo
+Interface Repo 20-22 | interface Repo
+  Method Repo.find 21-21 | fun find(id: Long): User?
+Class Registry 24-26 | object Registry
+Function main 28-32 ⋯29-31 | fun main()

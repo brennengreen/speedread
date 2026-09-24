@@ -1,0 +1,15 @@
+Interface Options 3-8 | export interface Options
+  Method Options.handler 7-7 | handler(req: Request): Promise<Response>
+Type Id 10-10 | export type Id = string | number;
+Enum Color 12-15 | export enum Color
+Class Server 17-37 | export class Server<T> extends Base implements Runnable
+  Constructor Server.constructor 20-24 ⋯21-23 | constructor(opts: Options)
+  Method Server.start 26-30 ⋯27-29 | async start(): Promise<void>
+  Method Server.handle 32-36 ⋯33-35 | handle = async (req: Request) =>
+Function createServer 39-43 ⋯40-42 | export function createServer(opts: Options): Server<unknown>
+Function helper 45-49 ⋯46-48 | export const helper = (a: number, b: number): number =>
+Function main 51-55 ⋯52-54 | export default function main()
+Module Utils 57-63 | namespace Utils
+  Function Utils.clamp 58-62 ⋯59-61 | export function clamp(x: number)
+Test Server 65-71 | describe("Server", () =>
+  Test Server.starts 66-70 ⋯67-69 | it("starts", async () =>

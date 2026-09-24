@@ -1,0 +1,5 @@
+Function createApp 3-11 ⋯7-10 | function createApp(config)
+Class Cache 13-25 | class Cache
+  Constructor Cache.constructor 14-18 ⋯15-17 | constructor(size)
+  Method Cache.get 20-24 ⋯21-23 | get(key)
+Method start 29-33 ⋯30-32 | start: async (port) =>

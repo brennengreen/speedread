@@ -1,0 +1,6 @@
+Trait Shape 3-5 | trait Shape
+  Method Shape.area 4-4 | def area: Double
+Class Circle 7-13 | case class Circle(r: Double) extends Shape
+  Method Circle.area 8-12 ⋯9-11 | def area: Double
+Class Main 15-21 | object Main
+  Method Main.main 16-20 ⋯17-19 | def main(args: Array[String]): Unit

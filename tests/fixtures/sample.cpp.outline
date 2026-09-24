@@ -1,0 +1,7 @@
+Module geo 3-26 | namespace geo
+  Class geo.Vec 5-17 | template <typename T> class Vec
+    Method geo.Vec.Vec 8-8 | Vec(T x, T y) : x_(x), y_(y)
+    Method geo.Vec.dot 9-9 | T dot(const Vec& o) const;
+    Method geo.Vec.len 10-14 ⋯11-13 | T len() const
+  Method geo.Vec.dot 19-24 ⋯21-23 | template <typename T> T Vec<T>::dot(const Vec& o) const
+Function free_fn 28-32 ⋯29-31 | void free_fn(int a)

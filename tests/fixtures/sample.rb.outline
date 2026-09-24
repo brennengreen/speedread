@@ -1,0 +1,7 @@
+Module Billing 3-26 | module Billing
+  Class Billing.Invoice 5-25 | class Invoice < Base
+    Method Billing.Invoice.initialize 8-12 ⋯9-11 | def initialize(total)
+    Method Billing.Invoice.build 14-18 ⋯15-17 | def self.build(attrs)
+    Method Billing.Invoice.pay! 20-24 ⋯21-23 | def pay!
+Test Billing.Invoice 28-34 | describe Billing::Invoice
+  Test Billing.Invoice.pays 29-33 ⋯30-32 | it "pays"

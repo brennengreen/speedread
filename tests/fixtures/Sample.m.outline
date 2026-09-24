@@ -1,0 +1,6 @@
+Class Greeter 3-6 | @interface Greeter : NSObject
+  Method Greeter.initWithName: 4-4 | - (instancetype)initWithName:(NSString *)name;
+  Method Greeter.greet:times: 5-5 | - (void)greet:(NSString *)who times:(NSInteger)n;
+Impl Greeter 8-25 | @implementation Greeter
+  Method Greeter.initWithName: 10-16 ⋯11-15 | - (instancetype)initWithName:(NSString *)name
+  Method Greeter.greet:times: 18-23 ⋯19-22 | - (void)greet:(NSString *)who times:(NSInteger)n
