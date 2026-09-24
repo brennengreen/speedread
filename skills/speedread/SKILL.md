@@ -61,7 +61,7 @@ speedread map --json | jq -s 'map(select(.lines != null)) | sort_by(-.lines) | .
 
 ## Make it the file reader
 
-Agents rarely pick up a new tool on their own (0% adoption in our drop-in trials).
+Agents rarely pick up a new tool on their own: merely installed, speedread was used in 0 of 26 trials, and those runs cost more than not installing it.
 Tell the harness: in Copilot CLI start with
 `--excluded-tools view grep glob` (edit/bash stay), or add to your project
 instructions: "Use the speedread tools to read, search and navigate code."

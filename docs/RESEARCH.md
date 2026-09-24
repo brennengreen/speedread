@@ -113,17 +113,24 @@ GitHub's `bpe` crate is ~4× faster than tiktoken single-threaded on M1 ([GitHub
 
 ## 10. What the evaluations changed
 
-The evals in [`evals/`](../evals/README.md) follow Anthropic's [*Demystifying evals for AI agents*](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents). Reading their transcripts changed the design as much as the literature did:
+The evals in [`evals/`](../evals/README.md) follow Anthropic's [*Demystifying evals for AI agents*](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents). Reading their transcripts changed the design as much as the literature did. All real-agent numbers are claude-sonnet-5 via GitHub Copilot CLI.
 
-- **Round trips are the lever.** With the same model and harness, speedread cut input tokens 35% and model time 47% on code questions. The tool results themselves were not smaller: every model call re-sends ~21k tokens of system prompt, tools and conversation, so answering in one call instead of three is what saves. In the coding baseline, read results were ~1% of input.
-- **Adoption is part of the product.** Installed next to the built-in tools, speedread was used in 0 of 10 trials, matching CodeCompass. Configured as the reader, it was used in 27 of 30; the exceptions were a 41-line file read with `cat`. The README therefore leads with configuration that makes it the reader.
-- **Compression claims need information-sufficiency graders.** Comparisons against whole-file reads and 2,000-line paging are structurally favorable to any compressor. The tool suite grades that the needed information is present, and reports a best-case baseline (grep plus an exact window), where the saving is 46%, not 98%.
+- **Savings follow round trips, so they depend on the workload.** Every model call re-sends ~18–21k tokens of system prompt, tools and conversation.
+  - On code questions, speedread cut input tokens 35% (95% CI −45 to −23%) and model time 47%.
+  - On relationship questions, −57% (CI −74 to −20%).
+  - On bug fixes, where editing and testing dominate the turns and read results were ~1% of input, tokens stayed within noise (−3%). Turns and model time pointed down (−16%, −24% median), but not significantly at 16 trials per arm.
+  - The "same success at 50–90% less context" that reviewers hoped for holds where reading dominates, not on short edit-and-test loops.
+- **Adoption is part of the product.** Merely installed, speedread was used in 0 of 26 trials across two suites, matching CodeCompass. Those runs were *more* expensive than baseline (+31%, +46% input tokens), because tool definitions ride along on every call (+2.2k tokens per call, measured). One sentence of guidance gave 16 of 16. The README leads with configuration that makes it the reader, and leaner definitions are next.
+- **New primitives are adopted where they fit.** Unprompted, the agent used `trace` in 7 of 8 relationship questions and in 0 of 32 bug fixes, which it localized from the symptom with search and read.
+- **Compression was safe where measured.** In 0 of the 32 bug-fix trials that used speedread was the buggy file first shown as a skeleton or outline before the buggy line. Agents searched first and read exact ranges.
+- **Compression claims need information-sufficiency graders.** Comparisons against whole-file reads and 2,000-line paging favor any compressor. The tool suite grades that the needed information is present, and reports a best-case baseline (grep plus an exact window), where the saving is 46%, not 98%.
+- **Graders encode semantics, and the semantics can be ambiguous.** Is a function that returns a closure a caller of what the closure calls? Baseline agents said no, and `trace` says yes. The grader now accepts both, and the behavior is documented.
 - **Budget estimates need adversarial and production calibration** (§8).
-- **The Claude Code caveat is material.** Its `Edit` requires a native `Read` of the file. On our 8 coding tasks, a full default Read of the edited file costs 2k–21k tokens (median 9.8k), paid once and then re-sent on every turn. Savings in Claude Code are exploration savings minus that.
+- **The Claude Code caveat is material for edit-heavy work.** Its Read-before-Edit rule, applied as an upper bound (a full Read of every edited file, re-sent on every later turn), turns the bug-fix suite's −3%/−1% into +10%/+19%.
 - **Identifiers that decide what an agent believes it has seen must not alias.** Etags are the full 64-bit xxh3 of the content (a collision among 100k snapshots is ~3 × 10⁻¹⁰), and shorter tags are rejected rather than prefix-matched.
 - **Next:**
-  - an optional LSP/SCIP layer behind `trace`, for exact references, overrides and call hierarchies (today's resolution is syntactic);
-  - tool-description A/B tests for unprompted adoption;
+  - an optional LSP/SCIP layer behind `trace` for exact references, overrides and call hierarchies;
+  - leaner tool definitions;
+  - A/B tests of tool descriptions for unprompted adoption;
   - a single high-level `context` tool;
-  - the speedread arms of the coding eval, including whether skeletons ever hide the decisive line.
-
+  - more tasks and trials, and other harnesses (Claude Code, Codex).

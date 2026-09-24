@@ -1,0 +1,16 @@
+diff --git a/src/flask/app.py b/src/flask/app.py
+index 2c4878f..ab5c3cc 100644
+--- a/src/flask/app.py
++++ b/src/flask/app.py
+@@ -1294,9 +1294,9 @@ class Flask(App):
+             # decide if a 2-tuple has status or headers
+             elif len_rv == 2:
+                 if isinstance(rv[1], (Headers, dict, tuple, list)):
+-                    rv, status = rv  # type: ignore[assignment,misc]
++                    rv, headers = rv  # type: ignore[assignment,misc]
+                 else:
+-                    rv, headers = rv  # pyright: ignore
++                    rv, status = rv  # pyright: ignore
+             # other sized tuples are not allowed
+             else:
+                 raise TypeError(

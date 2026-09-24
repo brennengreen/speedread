@@ -1,0 +1,13 @@
+diff --git a/tree.go b/tree.go
+index 005f42f..6efe2e0 100644
+--- a/tree.go
++++ b/tree.go
+@@ -577,7 +577,7 @@ walk: // Outer loop for walking the tree
+ 							}
+ 						}
+ 						(*value.params)[i] = Param{
+-							Key:   n.path[1:],
++							Key:   n.path[2:],
+ 							Value: val,
+ 						}
+ 					}

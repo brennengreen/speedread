@@ -28,22 +28,52 @@ Recorded eval transcripts, replayed at recorded speed; all three trials of each 
 
 ## Results
 
-Every number below comes from an eval in [`evals/`](evals/README.md), built to Anthropic's [*Demystifying evals for AI agents*](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents): explicit tasks, repeated trials, deterministic outcome graders, pass@k and pass^k, balanced task sets with controls, isolated trials and transcripts read. Raw data, every transcript included, is committed.
+Every number below comes from an eval in [`evals/`](evals/README.md), built to Anthropic's [*Demystifying evals for AI agents*](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents): explicit tasks, repeated trials, deterministic outcome graders, pass@k and pass^k, balanced task sets with controls, isolated trials and transcripts read. Raw data, every transcript included, is committed. All agent trials use claude-sonnet-5 via GitHub Copilot CLI, with exact token counts from the harness's usage log. The table covers all four real-agent workloads, not just the best one:
 
-### Real agent, same model, same harness
+| Workload (real agent, same model and harness) | Trials per arm | Input tokens | Model time (median) | Quality |
+|---|---:|---:|---:|---|
+| **Code questions**: find, read, answer | 30 | **−35%** (95% CI −45 to −23%) | **−47%** | pass^3 90% → **100%** |
+| **Relationship questions**: callers, callees, implementations | 8 | **−57%** (CI −74 to −20%) | −34% | 100% → 100% |
+| **Bug fixes**: find, edit, run the test suite (with guidance · exclusive) | 16 | −3% · −1% (not significant) | −24% · −27% (not significant) | 100% → 100%; compression never hid the bug |
+| **Installed but not made the reader** (Q&A · bug fixes) | 10 · 16 | **+31% · +46%** | — | used in **0 of 26** trials |
 
-<p align="center"><img src="docs/assets/chart-agent.svg" alt="Real-agent A/B: −35% input tokens, −47% model time, −36% model calls, −49% tool calls, −21% cost, pass^3 90% → 100%" width="100%"></p>
+Intervals are 95% bootstrap intervals on the ratio of means ([`evals/stats.py`](evals/stats.py)). The pattern:
 
-The setup: 10 code questions over 6 repositories and 5 languages, 3 trials each, claude-sonnet-5 via GitHub Copilot CLI, with tokens and cost taken from the harness's own per-call usage log ([Suite 3](evals/RESULTS.md#suite-3--real-agent-code-questions)).
+- **Round trips drive the savings.** Every model call re-sends the system prompt, tool definitions and conversation, about 18–21k tokens here. speedread saves where it removes calls: answers with enclosing context, batched reads, `trace` in one hop. On bug fixes, editing and testing dominate the turns, and read results were about 1% of input, so tokens barely moved.
+- **Adoption decides everything.** An unused MCP server is not free: its tool definitions ride along on every call (+2.2k tokens per call, measured). See [Make it the reader](#make-it-the-reader).
 
-- **Where the savings come from:** round trips, not bytes. Every model call re-sends the system prompt, tool definitions and conversation (~21k tokens here), and tool results were about the same size in both conditions. An answer in one call instead of three is two fewer full round trips.
-- **Adoption is part of the product.** Merely *installed* next to the built-in tools, speedread was used in **0 of 10** trials, matching [CodeCompass](https://arxiv.org/abs/2602.20048)'s finding that agents ignore better tools. As *the* reader, it was used in 27 of 30 trials; the 3 exceptions were a 41-line `go.mod`, where the agent ran `cat`. See [Make it the reader](#make-it-the-reader).
+### Code questions
 
-### Coding tasks (SWE-style)
+<p align="center"><img src="docs/assets/chart-agent.svg" alt="Real-agent A/B on code questions: −35% input tokens, −47% model time, −36% model calls, −49% tool calls, −21% cost, pass^3 90% → 100%" width="100%"></p>
 
-[Suite 4](evals/RESULTS.md#suite-4--real-agent-coding-tasks) injects real regressions into gin (Go) and flask (Python), hands the agent a symptom-only bug report and grades by the repository's **full test suite, with tests unmodified**. Every task is verified to fail as injected and to pass with the reference fix. There are four conditions: built-in tools, speedread *available*, speedread *preferred* and speedread *exclusive*. They measure pass rate, tokens, model time, turns, repeated source bytes, adoption, and whether a skeleton ever hid the decisive line.
+[Suite 3](evals/RESULTS.md#suite-3--real-agent-code-questions): 10 questions with version-specific answers, over 6 repositories and 5 languages, with 3 trials each. Cost fell on 10 of 10 tasks, and tool results were about the same size in both conditions: the saving is two fewer round trips per answer. As *the* reader, speedread was used in 27 of 30 trials; the 3 exceptions were a 41-line `go.mod`, which the agent read with `cat`. This suite ran before `trace`, symbol diffs and the content-aware estimator existed.
 
-**Status:** the baseline arm is complete: 16 trials, **100% pass**, 166k input tokens, 7.8 model calls and 7.84 AIU per task on average. The three speedread arms are not run yet. The baseline already shows where agent cost lives: read and search results averaged **1,604 tokens per task, about 1% of input**. The other 99% is conversation re-sent across ~8 round trips. The lever is fewer round trips, which is what the Q&A suite measured.
+### Relationship questions
+
+<p align="center"><img src="docs/assets/chart-relations.svg" alt="Relationship questions: −57% input tokens overall; multi-hop callers −73%, resolved callees −59%" width="100%"></p>
+
+[Suite 3b](evals/RESULTS.md#suite-3b--real-agent-relationship-questions) asks for two-hop callers, resolved callees, Go interface implementations (structural) and Rust trait implementations. Two of the four are answerable with one good grep; they are the controls. Unprompted, the agent chose `trace` in 7 of 8 trials. On the two-hop question, built-in tools took 7–14 tool calls and 186k–277k tokens. With speedread, the agent called `trace` with `depth: 2`, checked one more function and answered: 2 calls, 61k tokens. The sample is small (8 trials per arm), so treat the size of the effect as approximate.
+
+Transcript review changed this suite's grader. Both baseline trials of the two-hop task excluded `BasicAuth`, arguing that its `AbortWithStatus` call sits inside the closure `BasicAuthForRealm` returns, which the router invokes as a value. That is a defensible reading, so the grader now accepts both answers. `trace` attributes calls inside closures to the enclosing named function; this is listed under limitations.
+
+### Bug fixes (SWE-style)
+
+<p align="center"><img src="docs/assets/chart-coding.svg" alt="Bug fixes, four conditions: 100% pass everywhere; speedread preferred −24% and exclusive −27% median model time; available (unused) +46% tokens" width="100%"></p>
+
+[Suite 4](evals/RESULTS.md#suite-4--real-agent-coding-tasks) injects 8 real regressions into gin (Go) and flask (Python), gives the agent a symptom-only bug report and grades by the repository's **full test suite, with tests unmodified**. Every task is verified to fail as injected and to pass with the reference fix. The four conditions are:
+
+- *baseline*: built-in tools only
+- *available*: speedread installed, no guidance
+- *preferred*: one sentence asking the agent to use it for reading
+- *exclusive*: built-in view/grep/glob removed; edit and bash stay
+
+That is 64 trials:
+
+- **No quality cost.** 64 of 64 trials passed. Compression never hid the bug: in 0 of the 32 trials that used speedread was the file with the bug first shown as a skeleton or outline before the buggy line itself. Agents searched first and then read exact ranges.
+- **Adoption is binary.** *Available* was chosen in 0 of 16 trials, yet it used more input tokens than baseline on 8 of 8 tasks (+46%; cost +30%). One sentence of guidance took adoption to 16 of 16, with 78% of reads done through speedread.
+- **Fewer turns and less time; tokens flat.** *Preferred* took fewer model calls on 7 of 8 tasks (median 5 instead of 6) and 24% less model time. *Exclusive* took 27% less model time, lower on 7 of 8 tasks. Cost fell 4–6%, but input tokens stayed within noise (−3%, −1%). With 16 trials per arm none of these intervals exclude zero, so read them as directions ([stats](evals/RESULTS.md#suite-4--real-agent-coding-tasks)).
+- **Not observed:** the "same success at 50–90% less context" a reviewer hoped for. It holds where reading dominates the turns, and not on short edit-and-test loops.
+- `trace` was never called in these 32 trials: fixing a bug from its symptom needed search and read, not a call graph.
 
 ### Tool level
 
@@ -120,8 +150,10 @@ A signature edit reads ``f3 [25-27]: signature changed: `pub fn f3() -> u32` →
 ### `search`: hits grouped by enclosing symbol
 
 ```
-==> src/flask/helpers.py @… (4 matches)
-[200-251] def url_for(endpoint: str, *, _anchor: str | None = None, _method: str | None = None, …) -> str
+$ speedread search 'def url_for|current_app.url_for\(' src/flask/helpers.py
+3 matches in 1 file for /def url_for|current_app.url_for\(/
+==> src/flask/helpers.py @5dc322f9c9cf99f2 (3 matches)
+[200-251] def url_for(endpoint: str, *, _anchor: str | None = None, _method: str | None = None, _scheme: str | None = None, _external: bool | None = None, **values: t.Any) -> str
 200	def url_for(
 212	    :meth:`current_app.url_for() <flask.Flask.url_for>`. See that method
 244	    return current_app.url_for(
@@ -182,7 +214,7 @@ speedread map --json | jq -s 'map(select(.lines != null)) | sort_by(-.lines) | .
 
 ## Make it the reader
 
-Availability is not adoption. Configure speedread as the reader, not as one option among many.
+Availability is not adoption. Installed next to the built-in tools with no guidance, speedread was used in **0 of 26** trials across two suites. Those runs also cost more than not installing it (+31% and +46% input tokens), because its tool definitions ride along on every model call. One sentence of guidance took adoption to 16 of 16. So configure speedread as the reader, not as one option among many.
 
 **GitHub Copilot CLI:** add the server, then remove the built-in readers. Edit and bash stay.
 ```sh
@@ -196,7 +228,7 @@ claude mcp add --scope user speedread -- speedread mcp
 claude --disallowedTools Grep Glob     # keep Read: Edit requires it
 ```
 
-> **Claude Code caveat, quantified.** Claude Code's `Edit`/`Write` require a prior native `Read` of the file; MCP reads don't count ([claude-code#32214](https://github.com/anthropics/claude-code/issues/32214)). speedread can't remove that read. Across the 8 coding tasks, a full default `Read` of the edited file costs **2k–21k tokens (median 9.8k)**. It is paid once, then re-sent (mostly as cache reads) on every later turn. A ranged `Read` of the edit site is likely enough to satisfy the check, but that's unverified. So speedread's savings in Claude Code are its exploration savings minus this cost, not the full numbers above.
+> **Claude Code caveat, quantified.** Claude Code's `Edit`/`Write` require a prior native `Read` of the file; MCP reads don't count ([claude-code#32214](https://github.com/anthropics/claude-code/issues/32214)). speedread can't remove that read. In the bug-fix suite, speedread's agents edited files they had only seen through speedread. A full default `Read` of each costs 2k–21k tokens (median 9.8k) and is then re-sent on every later turn. Adding it (an upper bound) moves *preferred* from −3% to **+10%** input tokens against baseline, and *exclusive* from −1% to **+19%**. The baseline doesn't change, because it read those files natively anyway. A ranged `Read` of the edit site is probably enough to satisfy the check, but that's unverified. In Claude Code, expect speedread to save turns and time on edit-heavy work, not tokens; the exploration and relationship savings above still apply.
 
 **VS Code, Cursor, Codex, Gemini CLI, Zed, Claude Desktop:** see [configuration](#configuration). Add this to `AGENTS.md`, `CLAUDE.md` or `.github/copilot-instructions.md`:
 
@@ -255,9 +287,9 @@ The research behind every design choice, with sources, is in [docs/RESEARCH.md](
 
 ## Limitations and roadmap
 
-- **`trace` is syntactic.** It uses tree-sitter plus name resolution by receiver, class and package, with no type inference, so `x.f()` on an unknown receiver matches every `f`, marked `?`. The next step is an **optional LSP/SCIP layer** behind the same `trace` interface for exact references, overrides and call hierarchies.
-- **Adoption experiments.** Tool names, descriptions and schema shapes will be A/B tested for unprompted adoption, along with a single high-level `context` tool that picks map, search, trace or read itself.
-- **The coding eval's speedread arms** (available / preferred / exclusive) are pending. The harness and verified tasks are committed; `evals/RESULTS.md` has the command.
+- **`trace` is syntactic.** It uses tree-sitter plus name resolution by receiver, class and package, with no type inference, so `x.f()` on an unknown receiver matches every `f`, marked `?`. Calls inside closures and lambdas are attributed to the enclosing named function, and functions passed as values aren't calls. The next step is an **optional LSP/SCIP layer** behind the same `trace` interface, for exact references, overrides and call hierarchies.
+- **Definition overhead and adoption.** The server adds ~2.2k tokens to every model call (net +0.9k when it replaces view/grep/glob), whether or not it's used. Leaner descriptions, A/B tests of tool names and descriptions for unprompted adoption, and a single high-level `context` tool that picks map, search, trace or read itself are next.
+- **Sample sizes.** The bug-fix and relationship suites have 16 and 8 trials per arm, and their bug-fix token and time differences are within noise. More tasks, more trials and other harnesses (Claude Code, Codex) are next.
 - Budgets are estimates, not tokenizer counts. They are calibrated to offline tokenizers, plus the Claude profile from production counts.
 - Built and tuned for macOS on Apple Silicon. Other Unix systems use the portable walker, untested in CI. Windows is not supported.
 

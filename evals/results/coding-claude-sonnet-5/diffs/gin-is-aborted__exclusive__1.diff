@@ -1,0 +1,13 @@
+diff --git a/context.go b/context.go
+index ecb1ffe..788b00b 100644
+--- a/context.go
++++ b/context.go
+@@ -207,7 +207,7 @@ func (c *Context) Next() {
+ 
+ // IsAborted returns true if the current context was aborted.
+ func (c *Context) IsAborted() bool {
+-	return c.index > abortIndex
++	return c.index >= abortIndex
+ }
+ 
+ // Abort prevents pending handlers from being called. Note that this will not stop the current handler.

@@ -1,0 +1,68 @@
+{
+ "suite": "speedread-relationships",
+ "description": "Code questions whose answers are relationships: interface implementations (Go structural, Rust traits), multi-hop callers, and resolved callees. Balanced: two can be answered with one good grep, two need several hops. Graded by regex with partial credit; answers verified against the pinned commits.",
+ "tasks": [
+  {
+   "id": "gin-render-impls",
+   "repo": "gin",
+   "category": "Go interface implementations (structural)",
+   "prompt": "How many non-test types in gin's render package implement the render.Render interface, and which types are they? Answer with the count and the list of type names.",
+   "graders": [
+    "\\b18\\b",
+    "\\bMsgPack\\b",
+    "\\bProtoBuf\\b",
+    "\\bRedirect\\b",
+    "\\bReader\\b",
+    "\\bPureJSON\\b",
+    "\\bAsciiJSON\\b",
+    "\\bBSON\\b",
+    "\\bPDF\\b",
+    "\\bTOML\\b"
+   ],
+   "reference": "18: AsciiJSON, BSON, Data, HTML, IndentedJSON, JSON, JsonpJSON, MsgPack, PDF, ProtoBuf, PureJSON, Reader, Redirect, SecureJSON, String, TOML, XML, YAML."
+  },
+  {
+   "id": "ripgrep-sink-impls",
+   "repo": "ripgrep",
+   "category": "Rust trait implementations",
+   "prompt": "Which concrete types in this repository implement the grep-searcher crate's Sink trait? Ignore the blanket impls for &mut S and Box<S>. List the type names.",
+   "graders": [
+    "\\bUTF8\\b",
+    "\\bLossy\\b",
+    "\\bBytes\\b",
+    "\\bJSONSink\\b",
+    "\\bStandardSink\\b",
+    "\\bSummarySink\\b"
+   ],
+   "reference": "UTF8, Lossy, Bytes (grep_searcher::sinks), JSONSink, StandardSink, SummarySink (grep-printer); KitchenSink in test utilities."
+  },
+  {
+   "id": "gin-abort-two-hop",
+   "repo": "gin",
+   "category": "multi-hop callers",
+   "prompt": "In gin's non-test Go code, Context.AbortWithStatus is called directly by a few functions. Which non-test functions call one of those direct callers, i.e. reach AbortWithStatus through exactly one intermediate function call? Name them (count calls only, not functions passed as values).",
+   "graders": [
+    "\\bBindUri\\b",
+    "\\bMustBindWith\\b",
+    "\\bNegotiate\\b"
+   ],
+   "reference": "BindUri, MustBindWith and Negotiate (via AbortWithError). BasicAuth calls BasicAuthForRealm, but the AbortWithStatus call sits in the closure BasicAuthForRealm returns, which the router invokes as a value; answers may include or exclude BasicAuth (grader fixed after transcript review)."
+  },
+  {
+   "id": "flask-dispatch-callees",
+   "repo": "flask",
+   "category": "resolved callees",
+   "prompt": "Which methods defined in flask does Flask.full_dispatch_request (src/flask/app.py) call directly? For each, give the line in src/flask/app.py where that method is defined.",
+   "graders": [
+    "preprocess_request",
+    "handle_user_exception",
+    "finalize_request",
+    "\\bdispatch_request\\b[^\\n]*\\b969\\b|\\b969\\b[^\\n]*\\bdispatch_request\\b",
+    "\\b1369\\b",
+    "\\b868\\b",
+    "\\b1024\\b"
+   ],
+   "reference": "preprocess_request (1369), dispatch_request (969), handle_user_exception (868), finalize_request (1024)."
+  }
+ ]
+}

@@ -1,0 +1,13 @@
+diff --git a/render/json.go b/render/json.go
+index 36a6633..2f98676 100644
+--- a/render/json.go
++++ b/render/json.go
+@@ -48,7 +48,7 @@ type PureJSON struct {
+ }
+ 
+ var (
+-	jsonContentType      = []string{"application/json"}
++	jsonContentType      = []string{"application/json; charset=utf-8"}
+ 	jsonpContentType     = []string{"application/javascript; charset=utf-8"}
+ 	jsonASCIIContentType = []string{"application/json"}
+ )

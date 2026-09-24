@@ -22,6 +22,7 @@ graders fixed when transcript review showed them wrong. Results are in
 | 2. Budget contract | Does a `budget` hold on dense and adversarial content, for OpenAI and Claude tokenizers? | deterministic, adversarial | [`budget_eval.py`](budget_eval.py), [`fit_estimator.py`](fit_estimator.py) |
 | 2b. Tokenizer calibration | How far are offline estimates from a production tokenizer (claude-sonnet-5)? | measured from real sessions | [`tokenizer_calibration.py`](tokenizer_calibration.py) |
 | 3. Agent Q&A | Same model + harness answering code questions: accuracy, tokens, cost, time | real agent, capability | [`agent_eval.py`](agent_eval.py), [`agent_tasks.json`](agent_tasks.json) |
+| 3b. Agent relationships | Same, for callers, callees and implementations: does `trace` get used, and does it pay? | real agent, capability | [`agent_eval.py`](agent_eval.py), [`relationship_tasks.json`](relationship_tasks.json) |
 | 4. Agent coding | Same model + harness fixing real bugs: tests pass? at what cost? is the compression ever unsafe? does the agent even use the tool? | real agent, capability | [`coding_eval.py`](coding_eval.py), [`coding_tasks.json`](coding_tasks.json) |
 
 ## Suite 1 — tool scenarios (regression)
@@ -72,6 +73,10 @@ regex graders with partial credit. Conditions: `baseline` (built-in view/grep/gl
 bash), `speedread` (speedread as the reader: built-in view/grep/glob excluded, bash
 kept) and `dropin` (speedread merely added — measures unprompted adoption).
 
+## Suite 3b — agent relationship questions (real agent)
+
+Four questions whose answers are relationships: two-hop callers, resolved callees, Go interface implementations (structural) and Rust trait implementations. The prompts never mention speedread or `trace`, so the suite also measures whether an agent picks the new primitive on its own. It is balanced: two questions are answerable with one good grep. Conditions `baseline` and `speedread` match Suite 3, plus `--no-subagents` in both.
+
 ## Suite 4 — agent coding (real agent, SWE-style)
 
 Eight bug-fix tasks in two real codebases (gin/Go, flask/Python), easy/medium/hard
@@ -120,10 +125,16 @@ Reading transcripts, not just scores, found three problems that scores alone hid
    two trials excluded, but kept for audit. Another injected bug made `go test` hang
    (an infinite loop in route insertion) and was replaced before any trial ran;
    gin's grader now has a 300 s test timeout.
-3. Tool adoption: in the drop-in condition the agent ignored speedread in 10 of 10
-   trials despite server instructions — so "available" is not the same as "used",
-   and the recommended setup makes speedread *the* reader (see README).
-4. A harness bug after the switch to 64-bit etags (Suite 1 parsed 8 hex digits);
+3. Tool adoption: with speedread merely installed, the agent ignored it in 10 of 10
+   Q&A trials and 16 of 16 coding trials, despite server instructions, and those
+   runs cost *more* than baseline, because tool definitions are sent on every call.
+   One sentence of guidance gave 16 of 16. So "available" is not "used", and the
+   recommended setup makes speedread *the* reader (see README).
+4. An ambiguous grader (Suite 3b): both baseline trials of the two-hop callers
+   task "failed" by excluding `BasicAuth`, whose path to `AbortWithStatus` runs
+   through a closure invoked as a value. That reading is defensible, so the grader
+   accepts both answers (`--regrade`, 2 verdicts changed).
+5. A harness bug after the switch to 64-bit etags (Suite 1 parsed 8 hex digits);
    fixed in the harness, not by loosening the grader.
 
 ## Noise and limits
@@ -140,9 +151,11 @@ Reading transcripts, not just scores, found three problems that scores alone hid
   in shape, smaller than SWE-bench issues, and the model may know the original
   code. They measure navigation and reading cost for a fixed outcome, not
   frontier bug-fixing ability.
-- Suite 4's speedread arms have not been run yet (see RESULTS.md for status and the
-  command). Suite 3 ran with speedread's first three tools, before `trace`, symbol
-  diffs and the content-aware estimator existed.
+- Sample sizes are small: 30, 8 and 16 trials per arm in Suites 3, 3b and 4. Every
+  headline carries a 95% bootstrap interval ([`stats.py`](stats.py)). Suite 4's
+  token and time differences are within noise; Suite 3's are not.
+- Suite 3 ran with speedread's first three tools, before `trace`, symbol diffs and
+  the content-aware estimator existed. Suites 3b and 4 ran with the final server.
 
 ## Reproduce
 
@@ -151,8 +164,10 @@ Reading transcripts, not just scores, found three problems that scores alone hid
 python3 evals/tool_eval.py  <bench> --speedread target/release/speedread --rg rg --json evals/results/tool_eval.json
 python3 evals/budget_eval.py <bench> --speedread target/release/speedread --claude-counter tok/claude_count.js
 python3 evals/agent_eval.py  --bench <bench> --trials 3 --conditions baseline,speedread --dropin-trials 1
+python3 evals/agent_eval.py  --bench <bench> --tasks evals/relationship_tasks.json --trials 2 --no-subagents
 python3 evals/coding_eval.py --bench <bench> --venvs <venvs> --verify
 python3 evals/coding_eval.py --bench <bench> --venvs <venvs> --trials 2
+python3 evals/stats.py evals/results/<run>      # bootstrap intervals, per-task wins
 ```
 
 Agent suites need [GitHub Copilot CLI](https://github.com/github/copilot-cli)

@@ -1,0 +1,157 @@
+{
+ "meta": {
+  "model": "claude-sonnet-5",
+  "harness": "GitHub Copilot CLI 1.0.89-1",
+  "tasks": 4,
+  "trials": 2,
+  "date": "2026-09-24"
+ },
+ "conditions": {
+  "baseline": {
+   "trials": 8,
+   "pass@1": 1,
+   "mean_score": 1.0,
+   "pass@2": 1,
+   "pass^2": 1,
+   "k": 2,
+   "mean_input_tokens": 104797,
+   "mean_output_tokens": 1265.625,
+   "mean_cache_read_tokens": 92176.25,
+   "mean_cost_aiu": 6.2435375,
+   "mean_session_ms": 21605.125,
+   "mean_api_ms": 17686.75,
+   "mean_wall_s": 24.075,
+   "mean_model_calls": 5,
+   "mean_tool_calls": 4.375,
+   "mean_tool_result_tokens": 1258,
+   "median_input_tokens": 65820.0,
+   "median_cost_aiu": 4.253385,
+   "median_session_ms": 13744.0,
+   "adoption": 0
+  },
+  "speedread": {
+   "trials": 8,
+   "pass@1": 1,
+   "mean_score": 1.0,
+   "pass@2": 1,
+   "pass^2": 1,
+   "k": 2,
+   "mean_input_tokens": 44635.625,
+   "mean_output_tokens": 449.125,
+   "mean_cache_read_tokens": 37195.25,
+   "mean_cost_aiu": 3.04387375,
+   "mean_session_ms": 11317.5,
+   "mean_api_ms": 7179.5,
+   "mean_wall_s": 13.78125,
+   "mean_model_calls": 2.25,
+   "mean_tool_calls": 1.25,
+   "mean_tool_result_tokens": 702.125,
+   "median_input_tokens": 38917.0,
+   "median_cost_aiu": 2.7696899999999998,
+   "median_session_ms": 10747.5,
+   "adoption": 1
+  }
+ },
+ "tasks": {
+  "gin-render-impls": {
+   "category": "Go interface implementations (structural)",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 46463.5,
+    "cost_aiu": 2.89736,
+    "session_ms": 10022.5,
+    "model_calls": 2.5,
+    "tool_calls": 1.5,
+    "tool_result_tokens": 374.5,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 39882,
+    "cost_aiu": 3.12997,
+    "session_ms": 12194,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 1088.5,
+    "used_speedread": 1
+   }
+  },
+  "ripgrep-sink-impls": {
+   "category": "Rust trait implementations",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 47231,
+    "cost_aiu": 3.14365,
+    "session_ms": 10855.5,
+    "model_calls": 2.5,
+    "tool_calls": 1.5,
+    "tool_result_tokens": 744,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 38763,
+    "cost_aiu": 2.6485849999999997,
+    "session_ms": 8786,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 401,
+    "used_speedread": 1
+   }
+  },
+  "gin-abort-two-hop": {
+   "category": "multi-hop callers",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 231472,
+    "cost_aiu": 13.067450000000001,
+    "session_ms": 48205,
+    "model_calls": 10,
+    "tool_calls": 10.5,
+    "tool_result_tokens": 3523,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 61350,
+    "cost_aiu": 3.900705,
+    "session_ms": 15737.5,
+    "model_calls": 3,
+    "tool_calls": 2,
+    "tool_result_tokens": 1056,
+    "used_speedread": 1
+   }
+  },
+  "flask-dispatch-callees": {
+   "category": "resolved callees",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 94021.5,
+    "cost_aiu": 5.86569,
+    "session_ms": 17337.5,
+    "model_calls": 5,
+    "tool_calls": 4,
+    "tool_result_tokens": 390.5,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 38547.5,
+    "cost_aiu": 2.496235,
+    "session_ms": 8552.5,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 263,
+    "used_speedread": 1
+   }
+  }
+ }
+}

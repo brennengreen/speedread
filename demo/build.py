@@ -9,6 +9,8 @@ demo/race-data.json so the build is reproducible without the log):
   docs/assets/chart-agent.svg   real-agent A/B (Suite 3)
   docs/assets/chart-tools.svg   tool scenarios (Suite 1)
   docs/assets/chart-budget.svg  budget contract (Suite 2)
+  docs/assets/chart-coding.svg  SWE-style coding tasks, four conditions (Suite 4)
+  docs/assets/chart-relations.svg  relationship questions (Suite 3b)
   demo/index.html               self-contained report
 
 Usage: python3 demo/build.py
@@ -29,6 +31,7 @@ ASSETS = ROOT / "docs" / "assets"
 DEMO = ROOT / "demo"
 AGENT = RES / "agent-claude-sonnet-5"
 CODING = RES / "coding-claude-sonnet-5"
+RELATIONS = RES / "relationships-claude-sonnet-5"
 # All three trials of each condition were identical for this task, so the
 # replay is representative rather than a best case.
 RACE_TASK, RACE_TRIAL = "sap-configuration", 0
@@ -144,6 +147,28 @@ def budget_data():
     pooled = rep["pooled_reads (everything)"]
     return after, {"over": max(v["over"] for v in pooled.values()), "max": max(v["max"] for v in pooled.values()),
                    "n": max(v["n"] for v in pooled.values())}
+
+
+def relation_data():
+    if not (RELATIONS / "trials.jsonl").exists():
+        return None
+    recs = load_jsonl(RELATIONS / "trials.jsonl")
+    tasks = json.loads((ROOT / "evals" / "relationship_tasks.json").read_text())["tasks"]
+    rows = []
+    for t in tasks:
+        b = [r for r in recs if r["task"] == t["id"] and r["condition"] == "baseline"]
+        s_ = [r for r in recs if r["task"] == t["id"] and r["condition"] == "speedread"]
+        if b and s_:
+            rows.append({"id": t["id"], "category": t["category"],
+                         "b_in": mean(r["input_tokens"] for r in b), "s_in": mean(r["input_tokens"] for r in s_),
+                         "b_tools": mean(r["tool_calls"] for r in b), "s_tools": mean(r["tool_calls"] for r in s_),
+                         "b_pass": mean(r["pass"] for r in b), "s_pass": mean(r["pass"] for r in s_)})
+    by = {c: [r for r in recs if r["condition"] == c] for c in ("baseline", "speedread")}
+    tot = {c: {"input": mean(r["input_tokens"] for r in v), "cost": mean(r["cost_aiu"] for r in v),
+               "calls": mean(r["model_calls"] for r in v), "tools": mean(r["tool_calls"] for r in v),
+               "pass": mean(r["pass"] for r in v), "n": len(v),
+               "trace": sum("speedread-trace" in r["tools"] for r in v)} for c, v in by.items()}
+    return {"rows": rows, "tot": tot}
 
 
 def optional_json(p):
@@ -452,13 +477,90 @@ def budget_chart(after, pooled, calib):
                      rows, foot, label_w=300, legend=("fixed 2.6 bytes/token", "content-aware estimator"), absolute=1.0)
 
 
+COND_STYLE = {"baseline": (BASE, "built-in tools"), "available": ("#8b8fe8", "speedread available"),
+              "preferred": (A, "speedread preferred"), "exclusive": ("url(#g)", "speedread exclusive")}
+
+
+def coding_chart(coding):
+    """Grouped bars: one per condition, per metric (scaled per row)."""
+    C = coding["conditions"]
+    conds = [c for c in ("baseline", "available", "preferred", "exclusive") if c in C]
+    if len(conds) < 2:
+        return None
+    b = C["baseline"]
+    rows = [("Pass rate (pass@1)", "pass@1", lambda v: f"{v:.0%}", False),
+            ("Input tokens per task", "mean_input_tokens", lambda v: f"{v:,.0f}", True),
+            ("Model time per task (median)", "median_api_ms", lambda v: f"{v / 1000:.1f} s", True),
+            ("Model calls (round trips)", "mean_model_calls", lambda v: f"{v:.1f}", True),
+            ("Cost per task (AI units)", "mean_cost_aiu", lambda v: f"{v:.2f}", True),
+            ("Reads done with speedread", "speedread_share", lambda v: f"{v:.0%}", False)]
+    W, top, BH, GAP = 1280, 128, 15, 5
+    RH = len(conds) * (BH + GAP) + 26
+    H = top + RH * len(rows) + 64
+    x0, bw = 420, 1280 - 420 - 330
+    style = ("@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}"
+             ".bar{transform-box:fill-box;transform-origin:left;animation:grow 1.1s cubic-bezier(.2,.8,.2,1) both}")
+    out = [svg_open(W, H, style),
+           f'<text x="40" y="50" font-size="25" font-weight="700" fill="{TEXT}">Real bug fixes, same model: four ways to give an agent speedread</text>',
+           f'<text x="40" y="80" font-size="14.5" fill="{MUTED}">{coding["meta"]["tasks"]} injected regressions in gin (Go) and flask (Python) × '
+           f'{coding["meta"]["trials"]} trials per condition · pass = full test suite, tests untouched · claude-sonnet-5 via GitHub Copilot CLI</text>']
+    lx = 40
+    for c in conds:
+        color, label = COND_STYLE[c]
+        out.append(f'<rect x="{lx}" y="98" width="11" height="11" rx="2" fill="{color}"/>'
+                   f'<text x="{lx + 17}" y="108" font-size="13" fill="{MUTED}">{esc(label)}</text>')
+        lx += 30 + len(label) * 7.4
+    for i, (label, key, fmt, lower_better) in enumerate(rows):
+        y = top + i * RH
+        vals = [C[c].get(key) or 0 for c in conds]
+        m = max(vals) or 1
+        out.append(f'<text x="40" y="{y + RH / 2}" font-size="16" fill="{TEXT}">{esc(label)}</text>')
+        for j, (c, v) in enumerate(zip(conds, vals)):
+            yy = y + j * (BH + GAP)
+            w = max(2, bw * v / m)
+            color = COND_STYLE[c][0]
+            out.append(f'<rect class="bar" style="animation-delay:{i * 0.06 + j * 0.05:.2f}s" x="{x0}" y="{yy}" '
+                       f'width="{w:.1f}" height="{BH}" rx="4" fill="{color}"/>')
+            txt = fmt(v)
+            if lower_better and c != "baseline" and b.get(key):
+                d = change(v, b[key])
+                txt += f"  ({signed(d)})"
+            out.append(f'<text x="{x0 + w + 8}" y="{yy + BH - 3}" font-size="12.5" '
+                       f'fill="{TEXT if c != "baseline" else MUTED}">{esc(txt)}</text>')
+    used = [c for c in conds if c != "baseline" and C[c].get("adoption")]
+    n_used = sum(round(C[c]["adoption"] * C[c]["trials"]) for c in used)
+    hidden = sum(C[c]["decisive_collapsed_first"] for c in used)
+    foot = (f"The buggy line was first hidden inside a skeleton or outline in {hidden} of the {n_used} trials that used speedread. "
+            f"Unused (available), it was chosen in {C['available']['adoption']:.0%} of trials." if "available" in C else "")
+    out.append(f'<text x="40" y="{H - 30}" font-size="13" fill="{DIM}">{esc(foot)}</text>')
+    return "\n".join(out) + "\n</svg>\n"
+
+
+def relation_chart(rel):
+    b, s = rel["tot"]["baseline"], rel["tot"]["speedread"]
+    rows = []
+    for r in rel["rows"]:
+        rows.append((r["category"][0].upper() + r["category"][1:], r["b_in"], r["s_in"],
+                     f"{r['b_in']:,.0f} tokens · {r['b_tools']:.1f} tool calls",
+                     f"{r['s_in']:,.0f} tokens · {r['s_tools']:.1f} tool calls",
+                     signed(change(r["s_in"], r["b_in"])), r["s_in"] < r["b_in"]))
+    rows.append(("All relationship questions", b["input"], s["input"], f"{b['input']:,.0f} tokens · {b['tools']:.1f} tool calls",
+                 f"{s['input']:,.0f} tokens · {s['tools']:.1f} tool calls", signed(change(s["input"], b["input"])), True))
+    return bar_chart("Relationship questions: where trace earns its keep",
+                     f"callers two hops out, resolved callees, interface and trait implementations · {b['n']} trials per condition · "
+                     f"both pass {b['pass']:.0%} · claude-sonnet-5 via GitHub Copilot CLI",
+                     rows, f"Unprompted, the agent chose trace in {s['trace']} of {s['n']} speedread trials. "
+                           "Two of the four are answerable with one good grep (the controls); there the gap is small.",
+                     label_w=430)
+
+
 # ---------------------------------------------------------------- HTML
 
 def data_uri(p, mime):
     return f"data:{mime};base64," + base64.b64encode(p.read_bytes()).decode()
 
 
-def html_page(race, race_svg_text, charts, summary, m, tot, pooled, calib, coding):
+def html_page(race, race_svg_text, charts, summary, m, tot, pooled, calib, coding, rel):
     b, s = m["baseline"], m["speedread"]
     logo = data_uri(ASSETS / "logo-256.png", "image/png") if (ASSETS / "logo-256.png").exists() else ""
     task_rows = "".join(
@@ -509,17 +611,47 @@ def html_page(race, race_svg_text, charts, summary, m, tot, pooled, calib, codin
             insight = (f"<p>The baseline already shows where agent cost lives: read and search results averaged "
                        f"<b>{bl['mean_read_result_tokens']:,.0f} tokens</b> per task, about "
                        f"{bl['mean_read_result_tokens'] / bl['mean_input_tokens']:.0%} of {bl['mean_input_tokens']:,.0f} input tokens. "
-                       f"The rest is the conversation being re-sent on each of {bl['mean_model_calls']:.1f} round trips. "
-                       f"Round trips, not bytes, are the lever.</p>")
-        coding_html = (f"<table><tr><th>Condition</th><th>Trials</th><th>Pass</th><th>Input tokens</th><th>Model calls</th>"
-                       f"<th>Tool calls</th><th>Read-result tokens</th><th>AIU</th></tr>{cells}</table>{insight}"
+                       f"The rest is the conversation being re-sent on each of {bl['mean_model_calls']:.1f} round trips, "
+                       f"so a better reader can only save tokens by saving turns. With guidance, speedread took fewer turns on "
+                       f"most tasks and less model time, and tokens stayed within noise. Merely installed, it was never used, "
+                       f"and it made every task more expensive.</p>")
+        safety = ""
+        sr_conds = [c for c in ("available", "preferred", "exclusive") if c in C and C[c].get("adoption")]
+        if sr_conds:
+            parts = [f"{c}: {C[c]['decisive_collapsed_first']} of {round(C[c]['adoption'] * C[c]['trials'])} trials "
+                     f"(never expanded {C[c]['collapsed_never_expanded']}, failed {C[c]['collapsed_then_failed']})" for c in sr_conds]
+            safety = ("<p><b>Did compression hide the bug?</b> Among trials that used speedread, those where the file with the bug "
+                      "was first shown as a skeleton or outline, before the buggy line itself: " + "; ".join(parts) +
+                      ". Agents searched first, then read exact ranges.</p>")
+        cc = ""
+        ex = C.get("exclusive")
+        if ex and ex.get("mean_cc_adjusted_input") is not None:
+            cells_cc = "; ".join(f"{c} {C[c]['mean_cc_adjusted_input']:,.0f} ({signed(change(C[c]['mean_cc_adjusted_input'], bl['mean_cc_adjusted_input']))})"
+                                 for c in ("preferred", "exclusive") if c in C)
+            cc = (f"<p><b>Claude Code caveat, quantified.</b> Claude Code requires a native Read of a file before editing it, and MCP "
+                  f"reads don't count. Adding a full Read of every edited file the agent hadn't viewed natively, re-sent on every later "
+                  f"call (an upper bound), gives input tokens per task of: baseline {bl['mean_cc_adjusted_input']:,.0f}; {cells_cc}. "
+                  f"On edit-heavy work in Claude Code, expect speedread to save turns and time rather than tokens.</p>")
+        coding_html = (charts.get("coding", "") + f"<table><tr><th>Condition</th><th>Trials</th><th>Pass</th><th>Input tokens</th><th>Model calls</th>"
+                       f"<th>Tool calls</th><th>Read-result tokens</th><th>AIU</th></tr>{cells}</table>{insight}{safety}{cc}"
                        + (f"<p class=muted>Not run yet: {', '.join(missing)}. Command in evals/RESULTS.md.</p>" if missing else ""))
-    hero = [(signed(change(s['input'], b['input'])), "input tokens per task", "real agent, same model"),
-            (signed(change(s['api_med'], b['api_med'])), "model time (median)", "real agent, same model"),
-            (signed(change(s['tools'], b['tools'])), "tool calls", "real agent, same model"),
-            (f"{s['pass_k']:.0%}", f"correct on every trial (was {b['pass_k']:.0%})", "pass^3"),
-            (signed(change(tot['sr'], tot['base'])), f"tokens across {tot['n']} graded scenarios", "tool level"),
-            (f"{pooled['over']:.0%}", "reads over budget on hostile content (was 9.5%)", f"{pooled['n']} reads, offline tokenizers")]
+    hero = [(signed(change(s['input'], b['input'])), "input tokens · code questions", f"real agent, {s['n']} trials per arm"),
+            (signed(change(s['api_med'], b['api_med'])), "model time · code questions", "median, same model and harness")]
+    if rel:
+        rb_, rs_ = rel["tot"]["baseline"], rel["tot"]["speedread"]
+        hero.append((signed(change(rs_['input'], rb_['input'])), "input tokens · relationship questions",
+                     f"trace chosen in {rs_['trace']} of {rs_['n']} trials"))
+    if coding and "exclusive" in coding["conditions"]:
+        C = coding["conditions"]
+        # Only trials that actually used speedread can have been misled by it.
+        n_sr = sum(round(C[c]["adoption"] * C[c]["trials"]) for c in ("available", "preferred", "exclusive") if c in C)
+        hidden = sum(C[c]["decisive_collapsed_first"] for c in ("available", "preferred", "exclusive") if c in C)
+        allp = sum(round(v["pass@1"] * v["trials"]) for v in C.values())
+        hero.append((f"{allp}/{sum(v['trials'] for v in C.values())}", "bug fixes pass the full test suite",
+                     f"compression hid the bug in {hidden} of {n_sr}"))
+        hero.append((f"{C['available']['adoption']:.0%}", "adoption when merely installed",
+                     f"{C['preferred']['adoption']:.0%} with one sentence of guidance"))
+    hero.append((f"{pooled['over']:.0%}", "reads over budget on hostile content", f"was 9.5% · {pooled['n']} reads"))
     hero_html = "".join(f'<div class="stat"><div class="big">{esc(v)}</div><div>{esc(l)}</div><div class="muted">{esc(n)}</div></div>'
                         for v, l, n in hero)
     cites = "".join(f'<li><a href="{esc(u)}">{esc(t)}</a></li>' for t, u in CITATIONS)
@@ -557,6 +689,7 @@ code{{font-family:{MONO};font-size:.92em}}.cols{{display:grid;grid-template-colu
 <p>Where the savings come from: every model call re-sends the system prompt, tool definitions and conversation (~21k tokens here), so an answer in one call instead of three saves two full round trips. Tool results were about the same size in both conditions.</p>
 <h2>Tool-level scenarios</h2>{charts['tools']}
 <h2>The budget contract</h2>{charts['budget']}{calib_html}
+<h2>Relationship questions</h2>{charts.get('relations', '<p>Pending.</p>')}
 <h2>Coding tasks (SWE-style)</h2><p>Injected regressions in gin (Go) and flask (Python); symptom-only bug reports; graded by each repository's full test suite with tests unmodified; every task verified to fail as injected and pass with the reference fix. Conditions: built-in tools · speedread available · speedread preferred · speedread exclusive.</p>{coding_html}
 <h2>How it works</h2><div class="cols">
 <div><b>map</b>: locate structure<br><span class="muted">budgeted, importance-weighted tree with line counts; symbols on request</span></div>
@@ -580,11 +713,18 @@ def main():
     coding = optional_json(CODING / "summary.json")
     race = race_data()
     charts = {"agent": agent_chart(m), "tools": tools_chart(agg, tot), "budget": budget_chart(after, pooled, calib)}
+    if coding and (cc := coding_chart(coding)):
+        charts["coding"] = cc
+    rel = relation_data()
+    if rel:
+        charts["relations"] = relation_chart(rel)
     race_text = race_svg(race)
     (ASSETS / "race.svg").write_text(race_text)
     for k, v in charts.items():
         (ASSETS / f"chart-{k}.svg").write_text(v)
-    (DEMO / "index.html").write_text(html_page(race, race_text, charts, summary, m, tot, pooled, calib, coding))
+    (DEMO / "index.html").write_text(html_page(race, race_text, charts, summary, m, tot, pooled, calib, coding, rel))
+    if "coding" not in charts:
+        (ASSETS / "chart-coding.svg").unlink(missing_ok=True)
     for p in sorted(ASSETS.glob("*.svg")) + [DEMO / "index.html", DEMO / "race-data.json"]:
         print(f"{p.relative_to(ROOT)}  {p.stat().st_size / 1024:.0f} KB")
 

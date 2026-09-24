@@ -7,8 +7,9 @@ Machine: Apple M4 (4 performance + 6 efficiency cores), 16 GB RAM, macOS 15.7.9,
 | 1. Tool scenarios | each call returns enough, in fewer tokens and calls | 35/35 graded pass · 104 calls → 35 calls · **−93% tokens** |
 | 2. Budget contract | budgets hold on hostile content | reads over budget **9.5% → 0%** (525 reads, 3 tokenizers) |
 | 2b. Tokenizer calibration | offline estimate vs real claude-sonnet-5 counts | real = **1.22×** estimate (median) → Claude profile ×1.4 |
-| 3. Real agent, code questions | same model and harness, answers graded | **−35% input tokens, −47% model time, pass^3 90% → 100%** |
-| 4. Real agent, coding tasks | same model and harness, graded by test suites | baseline arm done (16/16 pass); speedread arms pending |
+| 3. Real agent, code questions | same model and harness, answers graded | **−35% input tokens (CI −45 to −23%), −47% model time, pass^3 90% → 100%** |
+| 3b. Real agent, relationship questions | callers, callees, implementations | **−57% input tokens (CI −74 to −20%)**, 100% → 100%; `trace` chosen in 7/8 trials |
+| 4. Real agent, coding tasks | graded by the repos' test suites | 64/64 pass; compression hid the bug 0/32; tokens −3% (n.s.), model time −24% (n.s.); unused: 0/16 adoption, +46% tokens |
 
 ## Suite 1 — tool scenarios
 
@@ -143,55 +144,141 @@ Notes:
 - Adoption as the reader: 27/30 trials. The 3 exceptions are `gin-go-version` (a 41-line `go.mod`), where the agent used `cat`.
 - Transcript review found a wrong grader (`ripgrep-walk-run` expected line 1425; correct is 1428); all trials were re-graded (`--regrade`), changing 7 verdicts.
 
-## Suite 4 — real agent, coding tasks
+### Uncertainty
 
-`coding_eval.py` · `coding_tasks.json`: 8 injected regressions (gin: 4, flask: 4; easy 3, medium 3, hard 2), symptom-only bug reports, pass = the full test suite passes with no test file modified. `--verify` confirms every task fails as injected and passes with the reference fix. Sub-agents and web tools are disabled in all conditions.
+95% bootstrap intervals, resampling trials within each condition; "lower on tasks" compares per-task means ([`stats.py`](stats.py)):
 
-8 SWE-style bug-fix tasks × 2 trials per condition, run 2026-09-24. Pass = the repository's full test suite passes with tests unmodified.
+| Condition vs baseline | Metric | Ratio of medians [95% CI] | Ratio of means [95% CI] | Lower on tasks |
+|---|---|---:|---:|---:|
+| speedread | Input tokens | 0.67 [0.51–0.68] | 0.65 [0.55–0.77] | 8/10 |
+| speedread | Model time | 0.53 [0.40–0.59] | 0.55 [0.46–0.67] | 9/10 |
+| speedread | Model calls | 0.67 [0.50–0.67] | 0.64 [0.56–0.74] | 8/10 |
+| speedread | Cost (AIU) | 0.79 [0.68–0.81] | 0.79 [0.65–0.96] | 10/10 |
+| speedread | Session time | 0.67 [0.55–0.74] | 1.19 [0.67–1.94] | 6/10 |
+| dropin | Input tokens | 1.44 [0.94–1.81] | 1.31 [0.96–1.76] | 1/10 |
+| dropin | Model time | 1.50 [0.85–1.82] | 1.32 [0.93–1.80] | 1/10 |
+| dropin | Model calls | 1.33 [0.88–1.67] | 1.22 [0.93–1.55] | 1/10 |
+| dropin | Cost (AIU) | 1.31 [0.95–1.84] | 1.33 [0.93–1.87] | 1/10 |
+| dropin | Session time | 1.35 [0.89–1.55] | 1.18 [0.75–1.83] | 3/10 |
 
-| Metric | baseline |
-|---|---:|
-| Pass rate (pass@1) | 100% |
-| Mean input tokens / task | 166,147 |
-| Median input tokens / task | 124,460 |
-| Mean output tokens / task | 1,714 |
-| Mean cost / task (AI units) | 7.84 |
-| Median model (API) time, s | 20.5 |
-| Median session time, s | 33.8 |
-| Mean model calls (turns) | 7.8 |
-| Mean tool calls | 6.9 |
-| Mean read/search calls | 4.5 |
-| Read-result tokens / task | 1,604 |
-| Source bytes shown / task | 5,150 |
-| Repeated source bytes / task | 594 |
-| Used speedread (adoption) | 0% |
-| Share of reads via speedread | 0% |
-| Decisive line shown | 100% |
+## Suite 3b — real agent, relationship questions
 
-Consistency: baseline pass@2 100%, pass^2 100%
+`agent_eval.py --tasks relationship_tasks.json --no-subagents`: 4 questions whose answers are relationships: two-hop callers (gin), resolved callees (flask), Go interface implementations found structurally (gin render), and Rust trait implementations (ripgrep). Two of the four are answerable with one good grep and serve as controls. 2 trials per condition, with sub-agents and web tools disabled in both. Run 2026-09-24 with the final four-tool server.
+
+4 tasks × 2 trials per condition, run 2026-09-24.
+
+| Metric | baseline | speedread | speedread vs baseline |
+|---|---:|---:|---:|
+| Pass rate (pass@1) | 100% | 100% | |
+| Mean input tokens / task | 104,797 | 44,636 | 57% lower |
+| Mean output tokens / task | 1,266 | 449 | 65% lower |
+| Mean cost / task (AI units) | 6.24 | 3.04 | 51% lower |
+| Mean session time (s) | 21.6 | 11.3 | 48% lower |
+| Mean model calls | 5.00 | 2.25 | 55% lower |
+| Mean tool calls | 4.38 | 1.25 | 71% lower |
+| Tool-result tokens / task | 1,258 | 702 | 44% lower |
+| Used speedread | 0% | 100% | |
+
+Consistency: baseline pass@2 100%, pass^2 100%; speedread pass@2 100%, pass^2 100%
 
 ### Per task (means)
 
-| Task | Difficulty | baseline pass / tokens |
-|---|---|---:|
-| gin-client-ip | medium | 100% / 131,080 |
-| gin-catchall-param | hard | 100% / 483,034 |
-| gin-json-charset | easy | 100% / 109,792 |
-| gin-is-aborted | easy | 100% / 84,010 |
-| flask-prefixed-env | medium | 100% / 94,683 |
-| flask-blueprint-url-prefix | medium | 100% / 137,438 |
-| flask-response-tuple | hard | 100% / 144,914 |
-| flask-json-decimal | easy | 100% / 144,224 |
+| Task | Category | baseline cost | speedread cost | baseline s | speedread s | baseline pass | speedread pass |
+|---|---|---:|---:|---:|---:|---:|---:|
+| gin-render-impls | Go interface implementations (structural) | 2.90 | 3.13 | 10.0 | 12.2 | 100% | 100% |
+| ripgrep-sink-impls | Rust trait implementations | 3.14 | 2.65 | 10.9 | 8.8 | 100% | 100% |
+| gin-abort-two-hop | multi-hop callers | 13.07 | 3.90 | 48.2 | 15.7 | 100% | 100% |
+| flask-dispatch-callees | resolved callees | 5.87 | 2.50 | 17.3 | 8.6 | 100% | 100% |
 
-- **Excluded:** `flask-blueprint-prefix` failed verification after its baseline trials ran — werkzeug merges repeated slashes, so the tests pass with the bug injected. It was replaced by `flask-blueprint-url-prefix`; the two invalid trials are kept in [`results/coding-claude-sonnet-5/excluded/`](results/coding-claude-sonnet-5/excluded/) and excluded from every number.
-- **Pending: the speedread arms** (`available`, `preferred`, `exclusive`). They were not run in this session because executing the speedread binary was not permitted by the session's tool-approval policy at the time. To run them and merge with the baseline:
+- The agent chose `trace` in 7 of 8 speedread trials, unprompted: callers with `depth: 2`, `callees`, and `impls`. `search` answered the eighth.
+- **Grader fixed after transcript review.** Both baseline trials of `gin-abort-two-hop` first failed for omitting `BasicAuth`. Their reasoning holds: `BasicAuthForRealm`'s `AbortWithStatus` call is inside the closure it returns, which the router invokes as a value, so `BasicAuth` → `BasicAuthForRealm` isn't a call path to `AbortWithStatus`. The grader now accepts answers with or without `BasicAuth` (`--regrade`: 2 verdicts changed). `trace` attributes calls in closures to the enclosing named function, which is the more permissive reading.
 
-  ```sh
-  python3 evals/coding_eval.py --bench <repos> --venvs <venvs> --conditions available,preferred,exclusive \
-      --trials 2 --out evals/results/coding-claude-sonnet-5
-  python3 evals/coding_eval.py --bench <repos> --venvs <venvs> --summarize evals/results/coding-claude-sonnet-5
-  python3 demo/build.py
-  ```
+| Condition vs baseline | Metric | Ratio of medians [95% CI] | Ratio of means [95% CI] | Lower on tasks |
+|---|---|---:|---:|---:|
+| speedread | Input tokens | 0.59 [0.21–1.04] | 0.43 [0.26–0.80] | 4/4 |
+| speedread | Model time | 0.66 [0.17–1.28] | 0.41 [0.22–0.92] | 3/4 |
+| speedread | Model calls | 0.57 [0.25–1.00] | 0.45 [0.29–0.76] | 4/4 |
+| speedread | Cost (AIU) | 0.65 [0.26–1.10] | 0.49 [0.32–0.85] | 3/4 |
+| speedread | Session time | 0.78 [0.27–1.25] | 0.52 [0.32–0.98] | 3/4 |
+
+## Suite 4 — real agent, coding tasks
+
+`coding_eval.py` · `coding_tasks.json`: 8 injected regressions (gin 4, flask 4; 3 easy, 3 medium, 2 hard), symptom-only bug reports. Pass = the full test suite passes with no test file modified; `--verify` confirms every task fails as injected and passes with the reference fix. Sub-agents and web tools are disabled in every condition, and trials are shuffled across conditions. Conditions:
+
+- `baseline`: built-in tools only
+- `available`: speedread added, no guidance
+- `preferred`: one sentence asking to use speedread for reading
+- `exclusive`: built-in view/grep/glob removed; edit and bash stay
+
+8 SWE-style bug-fix tasks × 2 trials per condition, run 2026-09-24. Pass = the repository's full test suite passes with tests unmodified.
+
+| Metric | baseline | available | preferred | exclusive |
+|---|---:|---:|---:|---:|
+| Pass rate (pass@1) | 100% | 100% | 100% | 100% |
+| Mean input tokens / task | 166,147 | 243,091 (+46%) | 160,357 (−3%) | 165,307 (−1%) |
+| Median input tokens / task | 124,460 | 174,428 (+40%) | 118,361 (−5%) | 102,896 (−17%) |
+| Claude Code-adjusted input tokens (upper bound) | 166,147 | 253,043 (+52%) | 182,872 (+10%) | 196,947 (+19%) |
+| Mean output tokens / task | 1,714 | 2,424 (+41%) | 1,685 (−2%) | 1,636 (−5%) |
+| Mean cost / task (AI units) | 7.84 | 10.15 (+30%) | 7.50 (−4%) | 7.37 (−6%) |
+| Median model (API) time, s | 20.5 | 21.5 (+5%) | 15.6 (−24%) | 14.9 (−27%) |
+| Median session time, s | 33.8 | 28.2 (−17%) | 24.1 (−29%) | 22.7 (−33%) |
+| Mean model calls (turns) | 7.8 | 9.4 (+21%) | 6.5 (−16%) | 7.2 (−6%) |
+| Mean tool calls | 6.9 | 8.4 (+22%) | 5.5 (−20%) | 6.2 (−9%) |
+| Mean read/search calls | 4.5 | 5.2 (+17%) | 3.1 (−32%) | 3.8 (−17%) |
+| Read-result tokens / task | 1,604 | 1,671 (+4%) | 1,906 (+19%) | 1,622 (+1%) |
+| Source bytes shown / task | 5,150 | 5,486 (+7%) | 5,475 (+6%) | 4,619 (−10%) |
+| Repeated source bytes / task | 594 | 1,034 (+74%) | 722 (+21%) | 551 (−7%) |
+| Used speedread (adoption) | 0% | 0% | 100% | 100% |
+| Share of reads via speedread | 0% | 0% | 78% | 83% |
+| Mean trace calls | 0.0 | 0.0 | 0.0 | 0.0 |
+| Decisive line shown | 100% | 100% | 100% | 100% |
+
+Consistency: baseline pass@2 100%, pass^2 100%; available pass@2 100%, pass^2 100%; preferred pass@2 100%, pass^2 100%; exclusive pass@2 100%, pass^2 100%
+
+Compression safety (speedread conditions): available: decisive line first hidden in a skeleton in 0 trials (never expanded 0, failed 0); preferred: decisive line first hidden in a skeleton in 0 trials (never expanded 0, failed 0); exclusive: decisive line first hidden in a skeleton in 0 trials (never expanded 0, failed 0)
+
+### Per task (means)
+
+| Task | Difficulty | baseline pass / tokens | available pass / tokens | preferred pass / tokens | exclusive pass / tokens |
+|---|---|---:|---:|---:|---:|
+| gin-client-ip | medium | 100% / 131,080 | 100% / 187,070 | 100% / 172,629 | 100% / 155,604 |
+| gin-catchall-param | hard | 100% / 483,034 | 100% / 775,370 | 100% / 456,459 | 100% / 559,913 |
+| gin-json-charset | easy | 100% / 109,792 | 100% / 109,920 | 100% / 85,220 | 100% / 80,322 |
+| gin-is-aborted | easy | 100% / 84,010 | 100% / 115,026 | 100% / 84,824 | 100% / 97,879 |
+| flask-prefixed-env | medium | 100% / 94,683 | 100% / 139,234 | 100% / 89,940 | 100% / 81,912 |
+| flask-blueprint-url-prefix | medium | 100% / 137,438 | 100% / 270,054 | 100% / 142,219 | 100% / 119,186 |
+| flask-response-tuple | hard | 100% / 144,914 | 100% / 192,646 | 100% / 107,999 | 100% / 99,278 |
+| flask-json-decimal | easy | 100% / 144,224 | 100% / 155,409 | 100% / 143,562 | 100% / 128,364 |
+
+Notes:
+- **Token and byte metrics are measured live**, on the output the model actually saw. Copilot's built-in grep returns absolute paths, which the saved, path-scrubbed transcripts shorten. `--reanalyze` recomputes only path-independent fields: the Claude Code overhead, decisive-line and collapse flags, and tool counts.
+- **Server overhead:** the median first-call input is 17,950 tokens for baseline, 20,151 for `available`, 20,204 for `preferred` and 18,858 for `exclusive`. The speedread server's tool definitions and instructions add ~2.2k tokens to every call, or ~0.9k net when they replace view/grep/glob. In `available`, the agent also took more turns (median 8 vs 6), so the definitions explain only part of its +46%.
+- **Claude Code-adjusted** adds a full numbered `Read` (up to 2,000 lines) of every edited file the agent hadn't viewed natively. It is re-sent on the call that emits the edit and every later call. It is an upper bound: a ranged Read may satisfy Claude Code's rule, and the extra round trip isn't counted.
+- **Compression safety:** a trial counts as "hidden" when a speedread result showed the buggy file under a `[skeleton]` or `[outline]` header before any result showed the buggy line. It happened in 0 of the 32 trials that used speedread; agents searched, then read exact ranges.
+- `trace` was not called in any trial.
+- **Excluded:** `flask-blueprint-prefix` failed verification after its two baseline trials ran. werkzeug merges repeated slashes, so the tests pass with the bug injected. It was replaced by `flask-blueprint-url-prefix`; the invalid trials are kept in [`results/coding-claude-sonnet-5/excluded/`](results/coding-claude-sonnet-5/excluded/) and excluded from every number.
+
+### Uncertainty
+
+| Condition vs baseline | Metric | Ratio of medians [95% CI] | Ratio of means [95% CI] | Lower on tasks |
+|---|---|---:|---:|---:|
+| available | Input tokens | 1.40 [0.92–1.79] | 1.46 [0.77–2.74] | 0/8 |
+| available | Model time | 1.05 [0.71–1.71] | 1.41 [0.69–2.72] | 1/8 |
+| available | Model calls | 1.33 [0.86–1.60] | 1.21 [0.77–1.89] | 1/8 |
+| available | Cost (AIU) | 1.10 [0.78–1.49] | 1.30 [0.73–2.27] | 2/8 |
+| available | Session time | 0.83 [0.47–1.33] | 0.98 [0.51–1.87] | 4/8 |
+| preferred | Input tokens | 0.95 [0.66–1.25] | 0.97 [0.54–1.74] | 5/8 |
+| preferred | Model time | 0.76 [0.52–1.15] | 1.00 [0.50–1.95] | 6/8 |
+| preferred | Model calls | 0.83 [0.60–1.09] | 0.84 [0.53–1.33] | 7/8 |
+| preferred | Cost (AIU) | 0.85 [0.66–1.19] | 0.96 [0.59–1.58] | 5/8 |
+| preferred | Session time | 0.71 [0.41–1.03] | 0.77 [0.41–1.46] | 5/8 |
+| exclusive | Input tokens | 0.83 [0.67–1.16] | 0.99 [0.55–1.76] | 5/8 |
+| exclusive | Model time | 0.73 [0.54–1.08] | 0.99 [0.49–1.83] | 7/8 |
+| exclusive | Model calls | 0.83 [0.67–1.09] | 0.94 [0.58–1.47] | 5/8 |
+| exclusive | Cost (AIU) | 0.79 [0.63–1.10] | 0.94 [0.57–1.52] | 5/8 |
+| exclusive | Session time | 0.67 [0.39–0.98] | 0.94 [0.42–1.82] | 4/8 |
+
+With 16 trials per arm, only the `available` direction is consistent across tasks: more input tokens on 8 of 8, sign test p ≈ 0.008. `preferred` and `exclusive` point to fewer turns and less model time (lower on 6–7 of 8 tasks), but no interval excludes 1.
 
 ## Speed
 

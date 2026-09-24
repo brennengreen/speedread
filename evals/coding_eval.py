@@ -56,6 +56,8 @@ BASH_READ = re.compile(r"(^|[;&|(]\s*|\s)(cat|head|tail|sed\s+-n|less|more|grep|
 BASH_RUN = re.compile(r"\bgo\s+(test|build|vet|run)\b|pytest|\bpython3?\s+-c\b|\.venv/bin/python\s+-c\b")
 NO_SUBAGENTS = ["task", "web_fetch", "web_search"]
 LINE_PREFIX = re.compile(r"^\s*\d+[\t.:|→]\s?")
+LIVE_ONLY = {"edited_files", "tool_result_tokens", "read_result_tokens", "shown_source_bytes", "repeated_source_bytes"}
+COLLAPSED_HEADER = re.compile(r"^==> (\S+?)(?::\d+-\d+)? .*\[(?:skeleton|outline)\]", re.M)
 GIT_ENV = {"GIT_AUTHOR_NAME": "eval", "GIT_AUTHOR_EMAIL": "eval@example.invalid",
            "GIT_COMMITTER_NAME": "eval", "GIT_COMMITTER_EMAIL": "eval@example.invalid"}
 
@@ -169,6 +171,13 @@ def edit_path(t):
     return a.get("path") or a.get("file_path") or a.get("filePath") or ""
 
 
+def ws_path(p, ws):
+    """Transcript path -> file on disk (live absolute paths, or `<ws>/…` from saved transcripts)."""
+    if p.startswith("<ws>/"):
+        return Path(ws) / p[5:]
+    return Path(p) if os.path.isabs(p) else Path(ws) / p
+
+
 def numbered_read_tokens(path, max_lines=2000):
     try:
         lines = Path(path).read_text("utf-8", "replace").splitlines()[:max_lines]
@@ -207,19 +216,24 @@ def analyze(task, events, ws):
         r = t.get("result") or ""
         if first_seen is None and dec["snippet"] in r and t["tool"] not in EDIT_TOOLS:
             first_seen = i
-        if first_seen is None and t["tool"] in SR_TOOLS and dec["file"] in r and ("[skeleton]" in r or "[outline]" in r
-                                                                                  or " ⋯" in r):
+        # The decisive file was shown collapsed (skeleton/outline header) before
+        # the decisive line itself was ever shown.
+        if first_seen is None and t["tool"] in SR_TOOLS and any(
+                m.group(1).rstrip(":") in (dec["file"], "./" + dec["file"]) or m.group(1).endswith("/" + dec["file"])
+                for m in COLLAPSED_HEADER.finditer(r)):
             collapsed_first = True
     first_edit = next((i for i, t in enumerate(tools) if t["tool"] in EDIT_TOOLS), None)
     # Claude Code requires its own Read of a file before Edit; MCP reads don't count.
     viewed = {(t.get("args") or {}).get("path", "") for t in tools if t["tool"] == "view"}
     edited = sorted({edit_path(t) for t in edits if edit_path(t)})
     need = [p for p in edited if not any(p.endswith(v) or v.endswith(p) for v in viewed if v)]
-    cc_tokens = sum(numbered_read_tokens(p if os.path.isabs(p) else ws / p) for p in need)
-    model_after_edit = 0
+    cc_tokens = sum(numbered_read_tokens(ws_path(p, ws)) for p in need)
+    # A Read inserted before the first edit stays in context for the call that
+    # emits the edit and every call after it (an extra round trip is not counted).
+    calls_with_read = 0
     if first_edit is not None:
         k = [i for i, e in enumerate(events) if e is tools[first_edit]][0]
-        model_after_edit = sum(1 for e in events[k:] if e["kind"] == "model")
+        calls_with_read = 1 + sum(1 for e in events[k:] if e["kind"] == "model")
     return {
         "tool_calls": len(tools), "tools": [t["tool"] for t in tools],
         "read_calls": len(reads), "speedread_calls": len(sr), "edit_calls": len(edits),
@@ -234,7 +248,7 @@ def analyze(task, events, ws):
         "decisive_seen_before_edit": first_seen is not None and (first_edit is None or first_seen < first_edit),
         "decisive_collapsed_first": collapsed_first,
         "edited_files": edited, "cc_mandatory_reads": len(need), "cc_read_tokens": cc_tokens,
-        "cc_read_tokens_resent": cc_tokens * model_after_edit,
+        "cc_read_tokens_resent": cc_tokens * calls_with_read,
     }
 
 
@@ -317,6 +331,9 @@ def summarize(recs, tasks):
             f"pass^{k}": mean([all(x["pass"] for x in v[:k]) for v in by_task.values()]),
             **{f"mean_{m}": mean([r.get(m) for r in rs]) for m in METRICS},
             **{f"median_{m}": median([r.get(m) for r in rs]) for m in ("input_tokens", "cost_aiu", "api_ms", "session_ms")},
+            # Claude Code requires a native Read before Edit: add a full Read of
+            # each edited file not viewed natively (upper bound), every condition.
+            "mean_cc_adjusted_input": mean([(r.get("input_tokens") or 0) + (r.get("cc_read_tokens_resent") or 0) for r in rs]),
             "adoption": mean([r["used_speedread"] for r in rs]),
             "speedread_share": mean([r["speedread_share"] for r in rs]),
             "decisive_seen": mean([r["decisive_seen"] for r in rs]),
@@ -353,6 +370,7 @@ def markdown(s, meta):
     lines += [hdr, "|---|" + "---:|" * len(C)]
     rows = [("Pass rate (pass@1)", "pass@1", "{:.0%}", False), ("Mean input tokens / task", "mean_input_tokens", "{:,.0f}", True),
             ("Median input tokens / task", "median_input_tokens", "{:,.0f}", True),
+            ("Claude Code-adjusted input tokens (upper bound)", "mean_cc_adjusted_input", "{:,.0f}", True),
             ("Mean output tokens / task", "mean_output_tokens", "{:,.0f}", True), ("Mean cost / task (AI units)", "mean_cost_aiu", "{:.2f}", True),
             ("Median model (API) time, s", "median_api_ms", "{:.1f}", True), ("Median session time, s", "median_session_ms", "{:.1f}", True),
             ("Mean model calls (turns)", "mean_model_calls", "{:.1f}", True), ("Mean tool calls", "mean_tool_calls", "{:.1f}", True),
@@ -360,6 +378,7 @@ def markdown(s, meta):
             ("Source bytes shown / task", "mean_shown_source_bytes", "{:,.0f}", True),
             ("Repeated source bytes / task", "mean_repeated_source_bytes", "{:,.0f}", True),
             ("Used speedread (adoption)", "adoption", "{:.0%}", False), ("Share of reads via speedread", "speedread_share", "{:.0%}", False),
+            ("Mean trace calls", "mean_trace_calls", "{:.1f}", False),
             ("Decisive line shown", "decisive_seen", "{:.0%}", False)]
     for label, key, fmt, delta in rows:
         vals = []
@@ -407,12 +426,28 @@ def main():
     ap.add_argument("--keep", action="store_true", help="keep trial workspaces")
     ap.add_argument("--verify", action="store_true", help="check every task fails as injected and passes when fixed")
     ap.add_argument("--summarize", default=None, help="rebuild summary for an existing run dir")
+    ap.add_argument("--reanalyze", default=None, help="recompute transcript analysis for every trial of a run dir, then summarize")
     args = ap.parse_args()
     args.bench, args.venvs = args.bench.resolve(), args.venvs.resolve()
     suite = json.loads(Path(args.tasks).read_text())
     tasks = [t for t in suite["tasks"] if not args.only or t["id"] in args.only.split(",")]
     if args.verify:
         return verify(tasks, args)
+    if args.reanalyze:
+        d = Path(args.reanalyze)
+        by_id = {t["id"]: t for t in suite["tasks"]}
+        recs = [json.loads(l) for l in (d / "trials.jsonl").read_text().splitlines() if l.strip()]
+        for r in recs:
+            task = by_id[r["task"]]
+            text = (d / "transcripts" / f"{r['task']}__{r['condition']}__{r['trial']}.jsonl").read_text()
+            events, *_ = parse_events(text)
+            a = analyze(task, events, args.bench / task["repo"])
+            # Token/byte metrics stay as measured live: saved transcripts have
+            # workspace paths scrubbed, which would shrink what the model saw.
+            r.update({k: v for k, v in a.items() if k not in LIVE_ONLY})
+        (d / "trials.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+        print(f"re-analyzed {len(recs)} trials")
+        args.summarize = str(d)
     if args.summarize:
         d = Path(args.summarize)
         recs = [json.loads(l) for l in (d / "trials.jsonl").read_text().splitlines() if l.strip()]

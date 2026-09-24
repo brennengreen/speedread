@@ -1,0 +1,13 @@
+diff --git a/src/flask/sansio/blueprints.py b/src/flask/sansio/blueprints.py
+index 31a433f..665816e 100644
+--- a/src/flask/sansio/blueprints.py
++++ b/src/flask/sansio/blueprints.py
+@@ -70,6 +70,8 @@ class BlueprintSetupState:
+         self.subdomain = subdomain
+ 
+         url_prefix = self.options.get("url_prefix")
++        if url_prefix is None:
++            url_prefix = self.blueprint.url_prefix
+         #: The prefix that should be used for all URLs defined on the
+         #: blueprint.
+         self.url_prefix = url_prefix

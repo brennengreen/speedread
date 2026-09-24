@@ -46,7 +46,7 @@ COMMON = [
     "--output-format",
     "json",
 ]
-SPEEDREAD_TOOLS = ("speedread-read", "speedread-search", "speedread-map")
+SPEEDREAD_TOOLS = ("speedread-read", "speedread-search", "speedread-map", "speedread-trace")
 
 try:  # optional: tokens of tool results entering the context
     import tiktoken
@@ -60,15 +60,18 @@ except Exception:  # pragma: no cover
         return len(s) // 4
 
 
-def condition_flags(cond, mcp_config):
+def condition_flags(cond, mcp_config, no_subagents=False):
     sr = ["--additional-mcp-config", f"@{mcp_config}", "--allow-all-mcp-server-instructions"]
+    # Sub-agents and web tools off in every condition keeps all tokens in one
+    # session and the comparison about reading code (Suite 3b, Suite 4).
+    extra = ["task", "web_fetch", "web_search"] if no_subagents else []
+    # `--excluded-tools` is variadic: keep it last.
     if cond == "baseline":
-        return []
+        return ["--excluded-tools", *extra] if extra else []
     if cond == "speedread":
-        # Variadic flag: keep it last.
-        return sr + ["--excluded-tools", "view", "grep", "glob", "rg"]
+        return sr + ["--excluded-tools", *extra, "view", "grep", "glob", "rg"]
     if cond == "dropin":
-        return sr
+        return sr + (["--excluded-tools", *extra] if extra else [])
     raise ValueError(cond)
 
 
@@ -128,7 +131,7 @@ def run_trial(job, args, out_dir, bench):
     task, cond, trial = job
     cwd = bench / task["repo"]
     cmd = ["copilot", "-p", task["prompt"], "--model", args.model, "--max-ai-credits", str(args.max_credits)]
-    cmd += COMMON + condition_flags(cond, args.mcp_config)
+    cmd += COMMON + condition_flags(cond, args.mcp_config, args.no_subagents)
     t0 = time.time()
     try:
         proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=args.timeout)
@@ -290,6 +293,7 @@ def main():
     ap.add_argument("--only", default=None, help="comma-separated task ids")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--regrade", default=None, help="re-grade an existing run dir with the current graders (no new trials)")
+    ap.add_argument("--no-subagents", action="store_true", help="disable sub-agents and web tools in every condition")
     args = ap.parse_args()
     if args.regrade:
         return regrade(Path(args.regrade), args)
@@ -323,7 +327,7 @@ def main():
 
     summary = summarize(recs, tasks)
     meta = {"model": args.model, "harness": "GitHub Copilot CLI " + subprocess.run(
-        ["copilot", "--version"], capture_output=True, text=True).stdout.strip().split("CLI ")[-1].rstrip("."),
+        ["copilot", "--version"], capture_output=True, text=True).stdout.strip().splitlines()[0].split("CLI ")[-1].rstrip("."),
             "tasks": len(tasks), "trials": args.trials, "date": time.strftime("%Y-%m-%d")}
     (out_dir / "summary.json").write_text(json.dumps({"meta": meta, **summary}, indent=1))
     (out_dir / "summary.md").write_text(markdown(summary, meta))

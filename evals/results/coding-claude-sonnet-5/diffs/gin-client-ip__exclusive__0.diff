@@ -1,0 +1,13 @@
+diff --git a/gin.go b/gin.go
+index 6fabb4f..a160727 100644
+--- a/gin.go
++++ b/gin.go
+@@ -516,7 +516,7 @@ func (engine *Engine) validateHeader(header string) (clientIP string, valid bool
+ 
+ 		// X-Forwarded-For is appended by proxy
+ 		// Check IPs in reverse order and stop when find untrusted proxy
+-		if (i == 0) || (engine.isTrustedProxy(ip)) {
++		if (i == 0) || (!engine.isTrustedProxy(ip)) {
+ 			return ipStr, true
+ 		}
+ 	}

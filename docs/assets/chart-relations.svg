@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="494" viewBox="0 0 1280 494" role="img" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" xml:space="preserve">
+<defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+<style>text{white-space:pre}@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}.bar{transform-box:fill-box;transform-origin:left;animation:grow 1.1s cubic-bezier(.2,.8,.2,1) both}</style>
+<rect width="1280" height="494" rx="18" fill="#0b1020"/>
+
+<text x="40" y="50" font-size="25" font-weight="700" fill="#e7eaf3">Relationship questions: where trace earns its keep</text>
+<text x="40" y="80" font-size="14.5" fill="#98a1b8">callers two hops out, resolved callees, interface and trait implementations · 8 trials per condition · both pass 100% · claude-sonnet-5 via GitHub Copilot CLI</text>
+<rect x="470" y="98" width="11" height="11" rx="2" fill="#64748b"/><text x="487" y="108" font-size="13" fill="#98a1b8">built-in tools</text><rect x="680" y="98" width="11" height="11" rx="2" fill="url(#g)"/><text x="697" y="108" font-size="13" fill="#98a1b8">speedread</text>
+<text x="40" y="156" font-size="16" fill="#e7eaf3">Go interface implementations (structural)</text>
+<rect class="bar" style="animation-delay:0.00s" x="470" y="132" width="460.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="146" font-size="13" fill="#98a1b8">46,464 tokens · 1.5 tool calls</text>
+<rect class="bar" style="animation-delay:0.15s" x="470" y="155" width="394.8" height="18" rx="4" fill="url(#g)"/>
+<text x="872.8415422858803" y="169" font-size="13" fill="#e7eaf3">39,882 tokens · 1.0 tool calls</text>
+<text x="1240" y="161" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−14%</text>
+<text x="40" y="218" font-size="16" fill="#e7eaf3">Rust trait implementations</text>
+<rect class="bar" style="animation-delay:0.07s" x="470" y="194" width="460.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="208" font-size="13" fill="#98a1b8">47,231 tokens · 1.5 tool calls</text>
+<rect class="bar" style="animation-delay:0.22s" x="470" y="217" width="377.5" height="18" rx="4" fill="url(#g)"/>
+<text x="855.5270479134467" y="231" font-size="13" fill="#e7eaf3">38,763 tokens · 1.0 tool calls</text>
+<text x="1240" y="223" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−18%</text>
+<text x="40" y="280" font-size="16" fill="#e7eaf3">Multi-hop callers</text>
+<rect class="bar" style="animation-delay:0.14s" x="470" y="256" width="460.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="270" font-size="13" fill="#98a1b8">231,472 tokens · 10.5 tool calls</text>
+<rect class="bar" style="animation-delay:0.29s" x="470" y="279" width="121.9" height="18" rx="4" fill="url(#g)"/>
+<text x="599.9197138314785" y="293" font-size="13" fill="#e7eaf3">61,350 tokens · 2.0 tool calls</text>
+<text x="1240" y="285" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−73%</text>
+<text x="40" y="342" font-size="16" fill="#e7eaf3">Resolved callees</text>
+<rect class="bar" style="animation-delay:0.21s" x="470" y="318" width="460.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="332" font-size="13" fill="#98a1b8">94,022 tokens · 4.0 tool calls</text>
+<rect class="bar" style="animation-delay:0.36s" x="470" y="341" width="188.6" height="18" rx="4" fill="url(#g)"/>
+<text x="666.5935663651398" y="355" font-size="13" fill="#e7eaf3">38,548 tokens · 1.0 tool calls</text>
+<text x="1240" y="347" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−59%</text>
+<text x="40" y="404" font-size="16" fill="#e7eaf3">All relationship questions</text>
+<rect class="bar" style="animation-delay:0.28s" x="470" y="380" width="460.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="394" font-size="13" fill="#98a1b8">104,797 tokens · 4.4 tool calls</text>
+<rect class="bar" style="animation-delay:0.43s" x="470" y="403" width="195.9" height="18" rx="4" fill="url(#g)"/>
+<text x="673.925336603147" y="417" font-size="13" fill="#e7eaf3">44,636 tokens · 1.2 tool calls</text>
+<text x="1240" y="409" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−57%</text>
+<text x="40" y="468" font-size="13" fill="#5d6784">Unprompted, the agent chose trace in 7 of 8 speedread trials. Two of the four are answerable with one good grep (the controls); there the gap is small.</text>
+</svg>
