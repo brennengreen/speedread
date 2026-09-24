@@ -3,6 +3,7 @@
 
 pub mod diff;
 pub mod engine;
+pub mod json;
 pub mod lang;
 pub mod macos;
 pub mod map;
@@ -13,6 +14,8 @@ pub mod search;
 pub mod server;
 pub mod source;
 pub mod structured;
+pub mod tokens;
+pub mod trace;
 pub mod util;
 pub mod walk;
 pub mod workspace;

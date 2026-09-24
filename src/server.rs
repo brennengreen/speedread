@@ -1,4 +1,4 @@
-//! MCP server: three tools (`read`, `search`, `map`) over stdio.
+//! MCP server: four tools (`read`, `search`, `map`, `trace`) over stdio.
 
 use std::sync::Arc;
 
@@ -21,7 +21,7 @@ use crate::engine::Engine;
 use crate::read::{Mode, ReadRequest};
 use crate::search::{Case, Output, SearchRequest};
 
-pub const INSTRUCTIONS: &str = "speedread: fast, token-budgeted code reading. Prefer its tools over shell cat/sed/head/grep/find/ls and over one-file-at-a-time reads. Batch every file, range and symbol you need into ONE `read` call (`path`, `path:A-B`, `path#Symbol`, `#Symbol`, globs); oversized files come back as skeletons you expand by symbol instead of being cut off. `search` hits show their enclosing function/class; `map` orients you in a repo. After editing a file, read `path@etag` (etag from the `==>` header) to see only what changed.";
+pub const INSTRUCTIONS: &str = "speedread: fast, token-budgeted code reading. Prefer its tools over shell cat/sed/head/grep/find/ls and over one-file-at-a-time reads. Batch every file, range and symbol you need into ONE `read` call (`path`, `path:A-B`, `path#Symbol`, `#Symbol`, globs); oversized files come back as skeletons you expand by symbol instead of being cut off. `search` hits show their enclosing function/class; `trace` follows callers, callees, references and implementations; `map` orients you in a repo. After editing a file, read `path@etag` (etag from the `==>` header) to see only what changed.";
 
 const READ_DESC: &str = "Read files token-efficiently. Use instead of cat/head/sed or one-file-at-a-time reads: put everything you need in ONE call (targets share the budget).
 Targets:
@@ -29,12 +29,19 @@ Targets:
 - `src/app.ts:120-180` lines; `src/app.ts:120` (or `file:line:col`) the function/class enclosing that line
 - `src/app.ts#handleRequest`, `src/app.ts#Server.start` a symbol's full source incl. docs/decorators; `#handleRequest` alone finds its definition anywhere
 - `README.md#Install` a section, `package.json#scripts` a key, `src/**/*.test.ts` a glob
-- `src/app.ts@1a2b3c4d` only what changed since the version whose @etag appeared in a header (after an edit), or lines appended to a log
+- `src/app.ts@9f86d081884c7d65` only what changed since the version whose @etag appeared in a header (after an edit), or lines appended to a log
 Output: `==> path @etag (N lines)` then `line<TAB>text`.";
 
 const SEARCH_DESC: &str = "Search file contents (ripgrep engine, .gitignore-aware; regex by default, literal=true for exact text). Hits are grouped by file and under their enclosing function/class with its line range, e.g. `[20-80] fn parse_header(...)`, so your next step can be read `path#parse_header` instead of guessing ranges. output=symbols returns the full source of every enclosing symbol in this same call; output=files lists paths with counts.";
 
 const MAP_DESC: &str = "Directory overview (.gitignore-aware): files with line counts, subdirectories expanded breadth-first until the budget is used, the rest summarized with file counts. symbols=true adds each file's top-level definitions (a compact repo map). Use first in an unfamiliar codebase instead of ls/find/tree.";
+
+const TRACE_DESC: &str = "Follow code relationships instead of searching and opening files one by one: callers, callees, references or implementations of a symbol, grouped by enclosing function with line ranges.
+- direction=callers (default): call sites; depth 2-3 builds the call tree upward
+- callees: each call in the body, resolved to its definition
+- refs: all uses incl. imports and type mentions
+- impls: subclasses / trait, protocol and interface implementations (Go: structural); a method target lists each override
+Syntactic (tree-sitter), no type inference: same-named definitions are told apart by receiver, class and package; `?` marks unresolved receivers.";
 
 fn one_or_many<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
     #[derive(Deserialize)]
@@ -163,6 +170,54 @@ pub struct MapArgs {
     pub globs: Option<Vec<String>>,
     #[serde(default, deserialize_with = "lenient_usize")]
     pub budget: Option<usize>,
+}
+
+fn lenient_direction<'de, D: Deserializer<'de>>(
+    d: D,
+) -> Result<Option<crate::trace::Direction>, D::Error> {
+    use crate::trace::Direction;
+    let s = Option::<String>::deserialize(d)?;
+    Ok(
+        s.and_then(|s| match s.trim().to_ascii_lowercase().as_str() {
+            "callers" | "caller" | "incoming" | "up" => Some(Direction::Callers),
+            "callees" | "callee" | "calls" | "outgoing" | "down" => Some(Direction::Callees),
+            "refs" | "references" | "usages" | "uses" => Some(Direction::Refs),
+            "impls" | "implementations" | "implementers" | "subclasses" | "overrides" => {
+                Some(Direction::Impls)
+            }
+            _ => None,
+        }),
+    )
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TraceArgs {
+    #[serde(alias = "symbol", alias = "name", alias = "targets")]
+    pub target: String,
+    #[serde(default, deserialize_with = "lenient_direction")]
+    pub direction: Option<crate::trace::Direction>,
+    #[serde(default, deserialize_with = "lenient_usize")]
+    pub depth: Option<usize>,
+    #[serde(default, deserialize_with = "lenient_usize")]
+    pub budget: Option<usize>,
+}
+
+impl JsonSchema for TraceArgs {
+    fn schema_name() -> Cow<'static, str> {
+        "TraceArgs".into()
+    }
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        json_schema!({
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "`#Name`, `Type.method`, `path#Name` or `path:LINE`."},
+                "direction": {"type": "string", "enum": ["callers", "callees", "refs", "impls"], "description": "Default callers."},
+                "depth": {"type": "integer", "description": "Levels to follow, 1-3 (default 1)."},
+                "budget": {"type": "integer", "description": "Max response tokens (default 4000)."}
+            },
+            "required": ["target"]
+        })
+    }
 }
 
 impl JsonSchema for ReadArgs {
@@ -365,6 +420,27 @@ impl Server {
         };
         blocking(move || crate::map::map(&engine, &req)).await
     }
+
+    #[tool(
+        name = "trace",
+        description = TRACE_DESC,
+        annotations(title = "Trace relationships", read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn trace(
+        &self,
+        Parameters(args): Parameters<TraceArgs>,
+        peer: Peer<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ensure_roots(&peer).await;
+        let engine = self.engine.clone();
+        let req = crate::trace::TraceRequest {
+            target: args.target,
+            direction: args.direction.unwrap_or_default(),
+            depth: args.depth.unwrap_or(1),
+            budget: args.budget,
+        };
+        blocking(move || crate::trace::trace(&engine, &req)).await
+    }
 }
 
 #[tool_handler]
@@ -380,10 +456,10 @@ impl ServerHandler for Server {
         request: InitializeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<InitializeResult, McpError> {
-        // OpenAI tokenizers (o200k) fit ~40% more bytes per token than Claude's.
-        let client = request.client_info.name.to_ascii_lowercase();
-        if client.contains("codex") || client.contains("openai") {
-            self.engine.set_bytes_per_token(3.6);
+        // Clients that only run one model family get budgets calibrated to its
+        // tokenizer (Claude 4.7+ counts ~1.4× more tokens than the estimate).
+        if let Some(t) = crate::engine::Tokenizer::for_client(&request.client_info.name) {
+            self.engine.set_tokenizer(t, false);
         }
         context.peer.set_peer_info(request.clone());
         self.negotiate_initialize(&request)

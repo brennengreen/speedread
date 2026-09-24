@@ -1,0 +1,142 @@
+{
+ "meta": {
+  "model": "claude-sonnet-5",
+  "harness": "GitHub Copilot CLI 1.0.89-1",
+  "tasks": 8,
+  "trials": 2,
+  "date": "2026-09-24"
+ },
+ "conditions": {
+  "baseline": {
+   "trials": 16,
+   "k": 2,
+   "pass@1": 1,
+   "pass@2": 1,
+   "pass^2": 1,
+   "mean_input_tokens": 166146.875,
+   "mean_output_tokens": 1714.1875,
+   "mean_cost_aiu": 7.84085375,
+   "mean_api_ms": 25434.4375,
+   "mean_session_ms": 47255.5,
+   "mean_model_calls": 7.75,
+   "mean_tool_calls": 6.875,
+   "mean_read_calls": 4.5,
+   "mean_edit_calls": 1.125,
+   "mean_read_result_tokens": 1604.3125,
+   "mean_shown_source_bytes": 5150.1875,
+   "mean_repeated_source_bytes": 594,
+   "mean_cc_read_tokens": 1837.1875,
+   "mean_cc_read_tokens_resent": 3674.375,
+   "mean_trace_calls": 0,
+   "median_input_tokens": 124460.5,
+   "median_cost_aiu": 6.512805,
+   "median_api_ms": 20548.5,
+   "median_session_ms": 33788.0,
+   "adoption": 0,
+   "speedread_share": 0.0,
+   "decisive_seen": 1,
+   "decisive_collapsed_first": 0,
+   "collapsed_then_failed": 0,
+   "collapsed_never_expanded": 0,
+   "touched_tests": 0
+  }
+ },
+ "tasks": {
+  "gin-client-ip": {
+   "difficulty": "medium",
+   "baseline": {
+    "pass": 1,
+    "input_tokens": 131080,
+    "cost_aiu": 6.934125,
+    "api_ms": 25494.5,
+    "model_calls": 6.5,
+    "tool_calls": 5.5,
+    "used_speedread": 0
+   }
+  },
+  "gin-catchall-param": {
+   "difficulty": "hard",
+   "baseline": {
+    "pass": 1,
+    "input_tokens": 483033.5,
+    "cost_aiu": 18.91007,
+    "api_ms": 72857.5,
+    "model_calls": 19.5,
+    "tool_calls": 18.5,
+    "used_speedread": 0
+   }
+  },
+  "gin-json-charset": {
+   "difficulty": "easy",
+   "baseline": {
+    "pass": 1,
+    "input_tokens": 109792,
+    "cost_aiu": 5.35716,
+    "api_ms": 15227.5,
+    "model_calls": 5.5,
+    "tool_calls": 5,
+    "used_speedread": 0
+   }
+  },
+  "gin-is-aborted": {
+   "difficulty": "easy",
+   "baseline": {
+    "pass": 1,
+    "input_tokens": 84010,
+    "cost_aiu": 4.14573,
+    "api_ms": 11655,
+    "model_calls": 4.5,
+    "tool_calls": 3.5,
+    "used_speedread": 0
+   }
+  },
+  "flask-prefixed-env": {
+   "difficulty": "medium",
+   "baseline": {
+    "pass": 1,
+    "input_tokens": 94683,
+    "cost_aiu": 4.55509,
+    "api_ms": 14145,
+    "model_calls": 5,
+    "tool_calls": 4,
+    "used_speedread": 0
+   }
+  },
+  "flask-blueprint-url-prefix": {
+   "difficulty": "medium",
+   "baseline": {
+    "pass": 1,
+    "input_tokens": 137438,
+    "cost_aiu": 9.44869,
+    "api_ms": 20784.5,
+    "model_calls": 6.5,
+    "tool_calls": 5.5,
+    "used_speedread": 0
+   }
+  },
+  "flask-response-tuple": {
+   "difficulty": "hard",
+   "baseline": {
+    "pass": 1,
+    "input_tokens": 144914,
+    "cost_aiu": 6.512805,
+    "api_ms": 23051,
+    "model_calls": 7.5,
+    "tool_calls": 6.5,
+    "used_speedread": 0
+   }
+  },
+  "flask-json-decimal": {
+   "difficulty": "easy",
+   "baseline": {
+    "pass": 1,
+    "input_tokens": 144224.5,
+    "cost_aiu": 6.863160000000001,
+    "api_ms": 20260.5,
+    "model_calls": 7,
+    "tool_calls": 6.5,
+    "used_speedread": 0
+   }
+  }
+ }
+}

@@ -55,7 +55,7 @@ enum Sel {
 struct Target {
     path: Option<String>,
     sel: Sel,
-    since: Option<u32>,
+    since: Option<u64>,
 }
 
 fn parse_line_spec(spec: &str) -> Option<Sel> {
@@ -268,7 +268,7 @@ impl Doc {
             h.push_str(&format!(":{}-{}", self.a + 1, self.b + 1));
         }
         h.push_str(&format!(
-            " @{:08x} ({}",
+            " @{:016x} ({}",
             src.etag(),
             crate::util::plural(src.line_count(), "line")
         ));
@@ -317,8 +317,11 @@ impl Item {
 
     fn cost(&mut self, e: &Engine, numbers: bool) -> usize {
         match &mut self.body {
-            Body::Text(s) => e.tokens(s.len()),
-            Body::Doc(d) => e.tokens(d.cost_bytes(numbers)),
+            Body::Text(s) => e.estimate(s.as_bytes()),
+            Body::Doc(d) => {
+                let bpt = e.bpt_for(&d.src, numbers);
+                (d.cost_bytes(numbers) as f32 / bpt).ceil() as usize
+            }
             Body::Big(b) => {
                 let span = b.b.saturating_sub(b.a) + 1;
                 let avg = (b.big.len / b.big.lines.max(1)).max(1) + 8;
@@ -411,7 +414,7 @@ impl Ctx<'_> {
     fn whole_item(&self, src: Arc<Source>, disp: String, note: Option<String>, tier: u8) -> Item {
         let n = src.line_count();
         if n == 0 {
-            return Item::text(format!("==> {disp} @{:08x} (empty file)\n", src.etag()), 2);
+            return Item::text(format!("==> {disp} @{:016x} (empty file)\n", src.etag()), 2);
         }
         let mut d = self.doc(src, disp, 0, n - 1, true);
         d.note = note;
@@ -507,14 +510,17 @@ impl Ctx<'_> {
         self.lines_item(src, disp, a, Some(b))
     }
 
-    fn since_item(&self, src: Arc<Source>, disp: String, old: u32, sel: &Sel) -> Vec<Item> {
+    fn since_item(&self, src: Arc<Source>, disp: String, old: u64, sel: &Sel) -> Vec<Item> {
         let e = self.e;
         let new = src.etag();
         let n = src.line_count();
         if new == old {
             e.remember(&src);
             return vec![Item::text(
-                format!("==> {disp} @{new:08x} unchanged ({} lines)\n", thousands(n)),
+                format!(
+                    "==> {disp} @{new:016x} unchanged ({} lines)\n",
+                    thousands(n)
+                ),
                 2,
             )];
         }
@@ -523,7 +529,7 @@ impl Ctx<'_> {
                 src,
                 disp,
                 sel,
-                Some(format!("no snapshot of @{old:08x}; full content")),
+                Some(format!("no snapshot of @{old:016x}; full content")),
             );
         };
         if src.data.len() > prev.data.len() && src.data.starts_with(&prev.data) {
@@ -536,7 +542,7 @@ impl Ctx<'_> {
             let added = n - first;
             let mut d = self.doc(src, disp.clone(), first, n - 1, false);
             d.header_override = Some(format!(
-                "==> {disp} @{new:08x} (was @{old:08x}): +{} appended, now {} lines",
+                "==> {disp} @{new:016x} (was @{old:016x}): +{} appended, now {} lines",
                 crate::util::plural(added, "line"),
                 thousands(n)
             ));
@@ -549,23 +555,42 @@ impl Ctx<'_> {
         }
         let diff = crate::diff::unified(&prev.data, &src.data, 2);
         let full_cost = numbered_bytes(&src, 0, n.saturating_sub(1), true);
-        if diff.text.len() * 10 < full_cost * 7 {
+        let (old_o, new_o) = (e.outline(&prev), e.outline(&src));
+        let changes = match (&old_o, &new_o) {
+            (Some(a), Some(b)) => crate::diff::symbol_changes(a, b, &diff),
+            _ => Vec::new(),
+        };
+        // mode=outline: which symbols changed and how, without the hunks.
+        let summary_only = self.mode == Mode::Outline && !changes.is_empty();
+        if summary_only || diff.len_estimate() * 10 < full_cost * 7 {
             e.remember(&src);
             let mut t = format!(
-                "==> {disp} @{new:08x} (was @{old:08x}): {} hunk{}, +{} -{}, now {} lines\n",
+                "==> {disp} @{new:016x} (was @{old:016x}): {} hunk{}, +{} -{}, now {} lines\n",
                 diff.hunks,
                 if diff.hunks == 1 { "" } else { "s" },
                 diff.added,
                 diff.removed,
                 thousands(n)
             );
-            t.push_str(&diff.text);
+            t.push_str(&crate::diff::render_changes(&changes, 16));
+            if summary_only {
+                t.push_str("(hunks omitted for mode=outline; read path#Name for a body)\n");
+            } else {
+                t.push_str(&diff.render(|g| hunk_label(g, old_o.as_deref(), new_o.as_deref())));
+            }
             return vec![Item::text(t, 2)];
         }
-        let note = format!(
-            "changed since @{old:08x}: +{} -{}; full file is smaller than the diff",
+        let mut note = format!(
+            "changed since @{old:016x}: +{} -{}; full file is smaller than the diff",
             diff.added, diff.removed
         );
+        if !changes.is_empty() {
+            let names: Vec<&str> = changes.iter().take(12).map(|c| c.name.as_str()).collect();
+            note.push_str(&format!("; changed symbols: {}", names.join(", ")));
+            if changes.len() > 12 {
+                note.push_str(&format!(" (+{} more)", changes.len() - 12));
+            }
+        }
         self.select(src, disp, sel, Some(note))
     }
 
@@ -639,7 +664,7 @@ impl Ctx<'_> {
         big: Arc<BigFile>,
         disp: String,
         sel: &Sel,
-        since: Option<u32>,
+        since: Option<u64>,
     ) -> Vec<Item> {
         let e = self.e;
         let etag = big.etag();
@@ -651,7 +676,7 @@ impl Ctx<'_> {
         }
         let lines = big.lines;
         let base = format!(
-            "==> {disp} @{etag:08x} ({} lines, {}, streamed)",
+            "==> {disp} @{etag:016x} ({} lines, {}, streamed)",
             thousands(lines as usize),
             human_bytes(big.len)
         );
@@ -659,7 +684,7 @@ impl Ctx<'_> {
             (Some(old), _) if old == etag => {
                 return vec![Item::text(
                     format!(
-                        "==> {disp} @{etag:08x} unchanged ({} lines)\n",
+                        "==> {disp} @{etag:016x} unchanged ({} lines)\n",
                         thousands(lines as usize)
                     ),
                     2,
@@ -691,7 +716,7 @@ impl Ctx<'_> {
                         first,
                         lines.saturating_sub(1),
                         format!(
-                            "==> {disp} @{etag:08x} (was @{old:08x}): +{} lines appended, now {} lines",
+                            "==> {disp} @{etag:016x} (was @{old:016x}): +{} lines appended, now {} lines",
                             thousands((lines - first) as usize),
                             thousands(lines as usize)
                         ),
@@ -730,7 +755,7 @@ impl Ctx<'_> {
                     a,
                     b,
                     format!(
-                        "==> {disp}:{}-{} @{etag:08x} ({} lines, streamed)",
+                        "==> {disp}:{}-{} @{etag:016x} ({} lines, streamed)",
                         a + 1,
                         b + 1,
                         thousands(lines as usize)
@@ -745,7 +770,7 @@ impl Ctx<'_> {
                     a,
                     b,
                     format!(
-                        "==> {disp}:{}-{} @{etag:08x} ({} lines, streamed)",
+                        "==> {disp}:{}-{} @{etag:016x} ({} lines, streamed)",
                         a + 1,
                         b + 1,
                         thousands(lines as usize)
@@ -773,7 +798,7 @@ impl Ctx<'_> {
         path: &Path,
         disp: String,
         sel: &Sel,
-        since: Option<u32>,
+        since: Option<u64>,
         note: Option<String>,
     ) -> Vec<Item> {
         match self.e.load(path) {
@@ -795,6 +820,22 @@ impl Ctx<'_> {
             }
             Ok(Loaded::Big(big)) => self.big_items(big, disp, sel, since),
             Err(err) => vec![Item::text(format!("==> {disp}: {}\n", io_message(&err)), 2)],
+        }
+    }
+}
+
+/// Enclosing symbol of a hunk's first change (git-style function context).
+fn hunk_label(
+    g: &crate::diff::Group,
+    old: Option<&crate::outline::Outline>,
+    new: Option<&crate::outline::Outline>,
+) -> Option<String> {
+    match g.after.iter().find(|r| !r.is_empty()) {
+        Some(r) => new.and_then(|o| o.innermost_at(r.start).map(|i| o.qualified_name(i))),
+        None => {
+            let o = old?;
+            let l = g.before.first()?.start;
+            o.innermost_at(l).map(|i| o.qualified_name(i))
         }
     }
 }
@@ -1045,6 +1086,7 @@ pub fn read(e: &Engine, req: &ReadRequest) -> String {
             "Output cut to fit budget={budget}; use the continuation targets above, narrower targets, or a larger budget.\n"
         ));
     }
+    e.enforce_budget(&mut out, budget);
     out
 }
 
@@ -1148,7 +1190,18 @@ fn render_item(
     out: &mut String,
     flags: &mut Flags,
 ) {
-    let limit_bytes = it.limit.map(|l| e.bytes_for(l));
+    // Each item converts tokens to bytes at its own density.
+    let bpt = match &it.body {
+        Body::Doc(d) => e.bpt_for(&d.src, numbers),
+        _ => e.bytes_for(1000) as f32 / 1000.0,
+    };
+    let limit_bytes = it.limit.map(|l| (l as f32 * bpt) as usize);
+    let budget_bytes = match &it.body {
+        Body::Doc(_) => {
+            ((budget_bytes as f32 / (e.bytes_for(1000) as f32 / 1000.0)) * bpt) as usize
+        }
+        _ => budget_bytes,
+    };
     match &mut it.body {
         Body::Text(s) => match limit_bytes {
             Some(max) => {
@@ -1349,11 +1402,13 @@ mod tests {
         );
         let t = p("#parse_header");
         assert_eq!((t.path, t.sel), (None, Sel::Symbol("parse_header".into())));
-        let t = p("logs/app.log@0a1b2c3d");
+        let t = p("logs/app.log@0a1b2c3d4e5f6071");
         assert_eq!(
             (t.path.as_deref(), t.since),
-            (Some("logs/app.log"), Some(0x0a1b2c3d))
+            (Some("logs/app.log"), Some(0x0a1b2c3d4e5f6071))
         );
+        // Old 8-digit tags are not etags (no silent partial matching).
+        assert_eq!(p("logs/app.log@0a1b2c3d").since, None);
         let t = p("node_modules/@types/node/index.d.ts");
         assert_eq!(
             (t.path.as_deref(), t.since),

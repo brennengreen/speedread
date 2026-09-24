@@ -59,13 +59,16 @@ pub fn plural(n: usize, word: &str) -> String {
     }
 }
 
+/// Etags are the full 64-bit xxh3 hash of a file's content, printed as 16
+/// hex digits (the width is fixed so a trailing `@word` in a filename is
+/// never mistaken for one).
 pub fn is_etag(s: &str) -> bool {
-    s.len() == 8 && s.bytes().all(|b| b.is_ascii_hexdigit())
+    s.len() == 16 && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-pub fn parse_etag(s: &str) -> Option<u32> {
+pub fn parse_etag(s: &str) -> Option<u64> {
     if is_etag(s) {
-        u32::from_str_radix(s, 16).ok()
+        u64::from_str_radix(s, 16).ok()
     } else {
         None
     }
@@ -86,7 +89,9 @@ mod tests {
         assert_eq!(plural(1, "file"), "1 file");
         assert_eq!(plural(3, "file"), "3 files");
         assert_eq!(plural(2, "match"), "2 matches");
-        assert_eq!(parse_etag("0000abcd"), Some(0xabcd));
+        assert_eq!(parse_etag("000000000000abcd"), Some(0xabcd));
+        assert_eq!(parse_etag("ffffffffffffffff"), Some(u64::MAX));
+        assert_eq!(parse_etag("0000abcd"), None);
         assert_eq!(parse_etag("xyz"), None);
     }
 }

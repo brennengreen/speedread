@@ -1,0 +1,147 @@
+{
+ "task": "sap-configuration",
+ "prompt": "In 'Sources/ArgumentParser/Parsable Types/ParsableCommand.swift', what is the type of the ParsableCommand protocol's static `configuration` requirement, and on which line is that requirement declared? Answer in one line.",
+ "repo": "swift-argument-parser",
+ "sides": {
+  "baseline": {
+   "events": [
+    {
+     "t": 0.0,
+     "kind": "model",
+     "k": 1,
+     "input": 21296,
+     "aiu": 2.13293
+    },
+    {
+     "t": 2.0889999866485596,
+     "kind": "tool",
+     "tool": "grep",
+     "args": {
+      "pattern": "static var configuration",
+      "paths": [
+       "Sources/ArgumentParser/Parsable Types/ParsableCommand.swift"
+      ],
+      "-n": true
+     }
+    },
+    {
+     "t": 2.111999988555908,
+     "kind": "result",
+     "text": "Sources/ArgumentParser/Parsable Types/ParsableCommand.swift"
+    },
+    {
+     "t": 2.120999813079834,
+     "kind": "model",
+     "k": 2,
+     "input": 21461,
+     "aiu": 0.63337
+    },
+    {
+     "t": 4.823999881744385,
+     "kind": "tool",
+     "tool": "grep",
+     "args": {
+      "-n": true,
+      "paths": [
+       "Sources/ArgumentParser/Parsable Types/ParsableCommand.swift"
+      ],
+      "pattern": "configuration"
+     }
+    },
+    {
+     "t": 4.827999830245972,
+     "kind": "result",
+     "text": "Sources/ArgumentParser/Parsable Types/ParsableCommand.swift"
+    },
+    {
+     "t": 4.831999778747559,
+     "kind": "model",
+     "k": 3,
+     "input": 21646,
+     "aiu": 0.68459
+    },
+    {
+     "t": 7.878999948501587,
+     "kind": "tool",
+     "tool": "bash",
+     "args": {
+      "command": "grep -n \"configuration\" \"<bench>/swift-argument-parser/Sources/ArgumentParser/Parsable Types/ParsableCommand.swift\"",
+      "description": "Search configuration in file"
+     }
+    },
+    {
+     "t": 7.928999900817871,
+     "kind": "result",
+     "text": "16:  static var configuration: CommandConfiguration { get }\n20:  /// This is generated from the configuration, if given, or from the type\n39:    configuration.commandName\n43:  public static var configuration: CommandConfiguration {\n204:    configuration.defaultSubcommand?.includesPassthroughArguments == true\n212:    for sub in command.configuration.subcommands {\n215:      guard sub.configuration.subcommands.isEmpty else { continue }\n218:      configurationFailure(\n224:        With this configuration, your asynchronous `run()` method will not be called. To fix this issue, change `\\(root)`'s `ParsableCommand` conformance to `AsyncParsableCommand`.\n233:    for sub in command.configuration.subcommands {\n235:        sub.configuration.subcommands.isEmpty\n255:  configurationFailure(\n261:    With this configuration, your asynchronous `run()` method will not be called. To fix this issue, change `\\(rootCommand)`'s `ParsableCommand` conformance to `AsyncParsableCommand`.\n266:  configurationFailure(\n<shellId: 0 completed with exit code 0>"
+    },
+    {
+     "t": 7.936999797821045,
+     "kind": "model",
+     "k": 4,
+     "input": 22226,
+     "aiu": 0.64604
+    },
+    {
+     "t": 9.391999959945679,
+     "kind": "answer",
+     "text": "The `configuration` requirement's type is `CommandConfiguration`, declared on line 16 (`static var configuration: CommandConfiguration { get }`)."
+    }
+   ],
+   "pass": true,
+   "input": 86629,
+   "cost": 4.09693,
+   "api_s": 9.275,
+   "calls": 4,
+   "tools": 3,
+   "trials": 3,
+   "identical": true
+  },
+  "speedread": {
+   "events": [
+    {
+     "t": 0.0,
+     "kind": "model",
+     "k": 1,
+     "input": 21618,
+     "aiu": 2.08242
+    },
+    {
+     "t": 1.7100000381469727,
+     "kind": "tool",
+     "tool": "speedread-search",
+     "args": {
+      "pattern": "static var configuration",
+      "paths": [
+       "Sources/ArgumentParser/Parsable Types/ParsableCommand.swift"
+      ]
+     }
+    },
+    {
+     "t": 1.7190001010894775,
+     "kind": "result",
+     "text": "2 matches in 1 file for /static var configuration/\n==> Sources/ArgumentParser/Parsable Types/ParsableCommand.swift @ba951bb7 (2 matches)\n[12-33] public protocol ParsableCommand: ParsableArguments\n16\t  static var configuration: CommandConfiguration { get }\n[43-45] public static var configuration: CommandConfiguration (in ParsableCommand)\n43\t  public static var configuration: CommandConfiguration {\n"
+    },
+    {
+     "t": 1.7320001125335693,
+     "kind": "model",
+     "k": 2,
+     "input": 21896,
+     "aiu": 0.54506
+    },
+    {
+     "t": 3.1590001583099365,
+     "kind": "answer",
+     "text": "`static var configuration: CommandConfiguration { get }` \u2014 declared on line 16."
+    }
+   ],
+   "pass": true,
+   "input": 43514,
+   "cost": 2.62748,
+   "api_s": 3.123,
+   "calls": 2,
+   "tools": 1,
+   "trials": 3,
+   "identical": true
+  }
+ }
+}

@@ -1,0 +1,21 @@
+diff --git a/tree.go b/tree.go
+index 005f42f..6a2b1fd 100644
+--- a/tree.go
++++ b/tree.go
+@@ -577,7 +577,7 @@ walk: // Outer loop for walking the tree
+ 							}
+ 						}
+ 						(*value.params)[i] = Param{
+-							Key:   n.path[1:],
++							Key:   n.path[2:],
+ 							Value: val,
+ 						}
+ 					}
+@@ -592,6 +592,7 @@ walk: // Outer loop for walking the tree
+ 			}
+ 		}
+ 
++
+ 		if path == prefix {
+ 			// If the current path does not equal '/' and the node does not have a registered handle and the most recently matched node has a child node
+ 			// the current node needs to roll back to last valid skippedNode

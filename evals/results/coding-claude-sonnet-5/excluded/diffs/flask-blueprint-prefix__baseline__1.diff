@@ -1,0 +1,13 @@
+diff --git a/src/flask/sansio/blueprints.py b/src/flask/sansio/blueprints.py
+index 7c0ffd0..665816e 100644
+--- a/src/flask/sansio/blueprints.py
++++ b/src/flask/sansio/blueprints.py
+@@ -97,7 +97,7 @@ class BlueprintSetupState:
+         """
+         if self.url_prefix is not None:
+             if rule:
+-                rule = self.url_prefix + rule
++                rule = "/".join((self.url_prefix.rstrip("/"), rule.lstrip("/")))
+             else:
+                 rule = self.url_prefix
+         options.setdefault("subdomain", self.subdomain)

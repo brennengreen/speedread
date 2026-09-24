@@ -66,21 +66,21 @@ pub struct SearchRequest {
 }
 
 #[derive(Clone)]
-struct Hit {
-    line: u32,
-    text: Vec<u8>,
-    is_match: bool,
+pub(crate) struct Hit {
+    pub(crate) line: u32,
+    pub(crate) text: Vec<u8>,
+    pub(crate) is_match: bool,
 }
 
-struct FileHits {
-    path: PathBuf,
-    hits: Vec<Hit>,
-    matches: usize,
+pub(crate) struct FileHits {
+    pub(crate) path: PathBuf,
+    pub(crate) hits: Vec<Hit>,
+    pub(crate) matches: usize,
 }
 
 const MAX_HITS_PER_FILE: usize = 400;
 /// Larger files are shown without enclosing-symbol grouping.
-const MAX_GROUP_BYTES: usize = 1 << 20;
+pub(crate) const MAX_GROUP_BYTES: usize = 1 << 20;
 
 struct Collect {
     hits: Vec<Hit>,
@@ -204,7 +204,7 @@ fn skip_ext(path: &Path) -> bool {
     )
 }
 
-fn build_matcher(req: &SearchRequest) -> Result<RegexMatcher, String> {
+pub(crate) fn build_matcher(req: &SearchRequest) -> Result<RegexMatcher, String> {
     let mut b = RegexMatcherBuilder::new();
     b.line_terminator(Some(b'\n'))
         .fixed_strings(req.literal)
@@ -228,13 +228,13 @@ fn build_matcher(req: &SearchRequest) -> Result<RegexMatcher, String> {
     })
 }
 
-struct Scan {
-    files: Vec<FileHits>,
-    searched: usize,
-    stopped: bool,
+pub(crate) struct Scan {
+    pub(crate) files: Vec<FileHits>,
+    pub(crate) searched: usize,
+    pub(crate) stopped: bool,
 }
 
-fn scan(
+pub(crate) fn scan(
     e: &Engine,
     roots: &[PathBuf],
     globs: &[String],
@@ -302,7 +302,7 @@ fn scan(
     }
 }
 
-fn resolve_roots(e: &Engine, paths: &[String]) -> Result<Vec<PathBuf>, String> {
+pub(crate) fn resolve_roots(e: &Engine, paths: &[String]) -> Result<Vec<PathBuf>, String> {
     if paths.is_empty() {
         return Ok(vec![e.ws.primary().to_path_buf()]);
     }
@@ -388,7 +388,7 @@ fn render_file(
     out.push_str("==> ");
     out.push_str(&e.ws.display(&f.path));
     if let Some(s) = src {
-        out.push_str(&format!(" @{:08x}", s.etag()));
+        out.push_str(&format!(" @{:016x}", s.etag()));
     }
     if output == Output::Files {
         out.push_str(&format!(" ({})\n", f.matches));
@@ -594,6 +594,7 @@ pub fn search(e: &Engine, req: &SearchRequest) -> String {
         t.push_str(". Narrow with path/glob or raise budget.\n");
         out.push_str(&t);
     }
+    e.enforce_budget(&mut out, budget);
     out
 }
 
@@ -651,6 +652,7 @@ pub fn find_definitions(e: &Engine, query: &str, limit: usize) -> (Vec<DefHit>, 
         });
     }
     let mut candidates = candidates.into_inner();
+    prefilter_definitions(&mut candidates, &[last.to_string()]);
     candidates.sort_unstable_by(|a, b| {
         use std::os::unix::ffi::OsStrExt;
         a.as_os_str().as_bytes().cmp(b.as_os_str().as_bytes())
@@ -694,9 +696,18 @@ pub fn find_definitions(e: &Engine, query: &str, limit: usize) -> (Vec<DefHit>, 
         let body = |h: &(Arc<Source>, Arc<Outline>, usize, i32)| {
             h.1.symbols[h.2].collapse.is_none() as i32
         };
-        (a.3, body(a), &a.0.path, a.1.symbols[a.2].start).cmp(&(
+        // Then canonical locations first: non-test, shallower paths.
+        let place = |h: &(Arc<Source>, Arc<Outline>, usize, i32)| {
+            let disp = h.0.path.to_string_lossy();
+            (
+                crate::trace::is_test_path(&disp),
+                h.0.path.components().count(),
+            )
+        };
+        (a.3, body(a), place(a), &a.0.path, a.1.symbols[a.2].start).cmp(&(
             b.3,
             body(b),
+            place(b),
             &b.0.path,
             b.1.symbols[b.2].start,
         ))
@@ -708,6 +719,74 @@ pub fn find_definitions(e: &Engine, query: &str, limit: usize) -> (Vec<DefHit>, 
         .map(|(s, o, i, _)| (s, o, i))
         .collect();
     (out, total)
+}
+
+/// Lines that look like a definition of one of `names` in some supported
+/// language (keyword forms, methods, assignments of functions, C++/ObjC
+/// forms, data keys, headings). A recall-oriented prefilter only.
+pub(crate) fn def_line_pattern(names: &[String]) -> String {
+    let w = |c: char| c.is_alphanumeric() || c == '_';
+    let alt = names
+        .iter()
+        .map(|n| {
+            format!(
+                "{}{}",
+                regex_escape(n),
+                if n.ends_with(w) { r"\b" } else { "" }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+    let n = format!("(?:{alt})");
+    [
+        format!(
+            r"\b(?:fn|func|def|function|class|struct|union|interface|trait|enum|type|typealias|protocol|extension|impl|module|namespace|object|record|actor|macro_rules!|const|static|let|var|val|alias|sub|proc)\s+(?:[\w$]+(?:\.|::))*{n}"
+        ),
+        format!(r"\bfunc\s*\([^)]*\)\s*{n}"),
+        format!(r"^\s*(?:[\w$@<>\[\],.*&:?]+\s+)*[*&]?{n}\s*(?:<[^()]*>)?\s*\("),
+        format!(r"{n}\s*[:=]\s*(?:async\s+)?(?:function\b|\(|[\w$]+\s*=>|lambda\b)"),
+        format!(r"::{n}\s*\("),
+        format!(r"^\s*[-+]\s*\([^)]*\)\s*{n}"),
+        format!(r"^\s*#\s*define\s+{n}"),
+        format!(r#"^\s*"?{n}"?\s*[:=]"#),
+        format!(r"^\s*\[+{n}"),
+        format!(r"^#+\s.*{n}"),
+    ]
+    .join("|")
+}
+
+/// When a name is common (many candidate files), keep only files where it
+/// appears on a definition-looking line before parsing their outlines.
+pub(crate) fn prefilter_definitions(candidates: &mut Vec<PathBuf>, names: &[String]) {
+    const THRESHOLD: usize = 200;
+    if candidates.len() <= THRESHOLD {
+        return;
+    }
+    let Ok(m) = RegexMatcherBuilder::new()
+        .line_terminator(Some(b'\n'))
+        .build(&def_line_pattern(names))
+    else {
+        return;
+    };
+    let keep: Vec<bool> = candidates
+        .par_iter()
+        .map(|p| {
+            let mut found = false;
+            let _ = with_searcher(0, |s| {
+                s.search_path(
+                    &m,
+                    p,
+                    grep_searcher::sinks::Bytes(|_, _| {
+                        found = true;
+                        Ok(false)
+                    }),
+                )
+            });
+            found
+        })
+        .collect();
+    let mut it = keep.into_iter();
+    candidates.retain(|_| it.next().unwrap_or(true));
 }
 
 fn regex_escape(s: &str) -> String {

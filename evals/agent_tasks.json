@@ -1,0 +1,125 @@
+{
+  "suite": "speedread-agent-ab",
+  "description": "Real-agent A/B eval: identical read-only code questions answered by the same agent harness and model, with the harness's built-in file tools (baseline) vs speedread as the file reader. Graders are deterministic and require version-specific facts (line numbers) so answers cannot come from training-data memory.",
+  "tasks": [
+    {
+      "id": "flask-shell-context",
+      "repo": "flask",
+      "category": "control: small symbol",
+      "prompt": "In this repository, what keys does the Flask.make_shell_context method put in the dict it builds before running the shell context processors, and on which line of src/flask/app.py is that dict created? Answer in one line.",
+      "graders": [
+        "\\bapp\\b",
+        "\\bg\\b",
+        "\\b628\\b"
+      ],
+      "reference": "\"app\" and \"g\" — the dict is created on line 628."
+    },
+    {
+      "id": "gin-go-version",
+      "repo": "gin",
+      "category": "control: tiny file",
+      "prompt": "Which Go version does this module's go.mod declare? Answer with just the version.",
+      "graders": [
+        "1\\.26(\\.0)?\\b"
+      ],
+      "reference": "go 1.26.0"
+    },
+    {
+      "id": "ripgrep-fixed-strings",
+      "repo": "ripgrep",
+      "category": "large file (8,161 lines)",
+      "prompt": "In this repository, what single-letter short flag does ripgrep's --fixed-strings option use, which Rust type implements that flag in crates/core/flags/defs.rs, and on which line of that file is the type defined? Answer in one line.",
+      "graders": [
+        "-F\\b",
+        "FixedStrings",
+        "\\b2362\\b"
+      ],
+      "reference": "-F, implemented by struct FixedStrings on line 2362."
+    },
+    {
+      "id": "ripgrep-walk-run",
+      "repo": "ripgrep",
+      "category": "large file (2,740 lines)",
+      "prompt": "In crates/ignore/src/walk.rs, on which line does the WalkParallel::run method begin, and what closure trait bound does it place on its parameter? Answer in one line.",
+      "graders": [
+        "\\b1428\\b",
+        "FnMut"
+      ],
+      "reference": "Line 1428 (`pub fn run<'s, F>(self, mkf: F)`; its doc comment starts at 1425); F: FnMut() -> FnVisitor<'s>.",
+      "notes": "v1 of this task expected 1425 (the doc-comment start) and failed every agent in every condition; fixed after transcript review."
+    },
+    {
+      "id": "zod-ip-kinds",
+      "repo": "zod",
+      "category": "large file (5,138 lines)",
+      "prompt": "In packages/zod/src/v3/types.ts, which ZodString check `kind` values are used for IP-address validation, and on which lines of that file are those kinds declared in the ZodStringCheck union type? Answer in one line.",
+      "graders": [
+        "\\bip\\b",
+        "\\bcidr\\b",
+        "\\b583\\b",
+        "\\b584\\b"
+      ],
+      "reference": "\"ip\" (line 583) and \"cidr\" (line 584)."
+    },
+    {
+      "id": "flask-dispatch-lines",
+      "repo": "flask",
+      "category": "large file, several symbols",
+      "prompt": "In src/flask/app.py, give the starting line numbers of the Flask methods dispatch_request, full_dispatch_request and finalize_request. Answer as `method: line`.",
+      "graders": [
+        "\\b969\\b",
+        "\\b995\\b",
+        "\\b1024\\b"
+      ],
+      "reference": "dispatch_request: 969, full_dispatch_request: 995, finalize_request: 1024."
+    },
+    {
+      "id": "gin-abort-callers",
+      "repo": "gin",
+      "category": "cross-file search",
+      "prompt": "In this repository, which non-test .go files other than context.go call c.AbortWithStatus(...) — the plain method, not AbortWithStatusJSON or other variants? List each call as file:line.",
+      "graders": [
+        "auth\\.go",
+        "recovery\\.go",
+        "\\b60\\b",
+        "\\b109\\b",
+        "\\b115\\b"
+      ],
+      "reference": "auth.go:60, auth.go:109, recovery.go:115."
+    },
+    {
+      "id": "vscode-setvalue",
+      "repo": "vscode",
+      "category": "huge repo (19k files)",
+      "prompt": "In this repository, which file defines the TextModel class that implements the editor's ITextModel (give its path), and what does TextModel.setValue do when it receives null or undefined? Include the line number of that check.",
+      "graders": [
+        "src/vs/editor/common/model/textModel\\.ts",
+        "illegal ?argument|throws?",
+        "\\b487\\b"
+      ],
+      "reference": "src/vs/editor/common/model/textModel.ts; it throws illegalArgument() (check on line 487)."
+    },
+    {
+      "id": "alamofire-start-immediately",
+      "repo": "Alamofire",
+      "category": "Swift, large file (1,441 lines)",
+      "prompt": "In Source/Core/Session.swift, what is the default value of the startRequestsImmediately parameter of Session's init(session:delegate:rootQueue:...) initializer, and on which line is that parameter declared? Answer in one line.",
+      "graders": [
+        "\\btrue\\b",
+        "\\b136\\b"
+      ],
+      "reference": "true, declared on line 136."
+    },
+    {
+      "id": "sap-configuration",
+      "repo": "swift-argument-parser",
+      "category": "Swift, protocol requirement",
+      "prompt": "In 'Sources/ArgumentParser/Parsable Types/ParsableCommand.swift', what is the type of the ParsableCommand protocol's static `configuration` requirement, and on which line is that requirement declared? Answer in one line.",
+      "graders": [
+        "CommandConfiguration",
+        "\\b16\\b"
+      ],
+      "reference": "CommandConfiguration, declared on line 16."
+    }
+  ]
+}

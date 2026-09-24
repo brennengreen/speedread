@@ -37,6 +37,13 @@ struct Dir {
 
 /// Files listed per expanded directory before summarizing the rest.
 const MAX_FILES: usize = 14;
+/// Files listed at the root before summarizing: the root is always shown in
+/// full for orientation (up to this sanity cap).
+const MAX_ROOT_FILES: usize = 80;
+
+fn file_cap(d: usize) -> usize {
+    if d == 0 { MAX_ROOT_FILES } else { MAX_FILES }
+}
 /// Subdirectories listed per expanded directory (largest first).
 const MAX_DIRS: usize = 24;
 
@@ -87,6 +94,7 @@ pub fn tree(
 ) -> String {
     let opts = WalkOpts {
         globs: globs.to_vec(),
+        include_symlinks: true,
         ..Default::default()
     };
     let (files, truncated) = match walk::list_files(root, &opts, 400_000) {
@@ -162,7 +170,7 @@ pub fn tree(
         dirs[i].files.sort();
     }
 
-    let max_bytes = e.bytes_for(budget);
+    let mut max_bytes = e.bytes_for(budget);
     let root_disp = e.ws.display(root);
     let mut header = format!(
         "==> {}/ ({}, {}; .gitignore respected{})\n",
@@ -190,7 +198,7 @@ pub fn tree(
             .files
             .par_iter()
             .enumerate()
-            .take(MAX_FILES)
+            .take(file_cap(d))
             .map(|(k, (name, size))| (k, file_note(e, &dir_path.join(name), *size, symbols)))
             .collect();
         for (k, n) in items {
@@ -206,18 +214,15 @@ pub fn tree(
         if dirs[d].dirs.len() > MAX_DIRS {
             c += indent + 50;
         }
-        for (k, (name, _)) in dirs[d].files.iter().enumerate().take(MAX_FILES) {
+        for (k, (name, _)) in dirs[d].files.iter().enumerate().take(file_cap(d)) {
             c += indent + name.len() + 2 + notes.get(&(d, k)).map_or(6, |n| n.len());
         }
-        if dirs[d].files.len() > MAX_FILES {
+        if dirs[d].files.len() > file_cap(d) {
             c += indent + 60;
         }
         c
     };
-    let mut expanded = vec![false; dirs.len()];
-    expanded[0] = true;
     annotate(0, &dirs, &mut notes);
-    let mut used = header.len() + listing_cost(0, &dirs, &notes);
     // Importance-weighted expansion: a directory's value is its file count,
     // discounted 4× per level of depth and 8× per penalty step (hidden, test,
     // vendored…); top-level source directories come first.
@@ -231,29 +236,42 @@ pub fn tree(
         }
         (v * 1000.0) as u64
     };
-    let mut heap: BinaryHeap<(u64, Reverse<usize>)> = BinaryHeap::new();
-    for c in visible_dirs(&dirs, 0) {
-        heap.push((score(&dirs, c), Reverse(c)));
-    }
-    while let Some((_, Reverse(d))) = heap.pop() {
-        if max_depth.is_some_and(|m| dirs[d].depth >= m) {
-            continue;
-        }
-        let d = chain_end(&dirs, d);
-        annotate(d, &dirs, &mut notes);
-        let c = listing_cost(d, &dirs, &notes);
-        if used + c > max_bytes {
-            continue;
-        }
-        used += c;
-        expanded[d] = true;
-        for c in visible_dirs(&dirs, d) {
+    // Byte-sized expansion, then a content-aware check: listings are dense
+    // (numbers, short names), so shrink the allowance and retry if needed.
+    let mut out = String::new();
+    for _attempt in 0..4 {
+        let mut expanded = vec![false; dirs.len()];
+        expanded[0] = true;
+        let mut used = header.len() + listing_cost(0, &dirs, &notes);
+        let mut heap: BinaryHeap<(u64, Reverse<usize>)> = BinaryHeap::new();
+        for c in visible_dirs(&dirs, 0) {
             heap.push((score(&dirs, c), Reverse(c)));
         }
+        while let Some((_, Reverse(d))) = heap.pop() {
+            if max_depth.is_some_and(|m| dirs[d].depth >= m) {
+                continue;
+            }
+            let d = chain_end(&dirs, d);
+            annotate(d, &dirs, &mut notes);
+            let c = listing_cost(d, &dirs, &notes);
+            if used + c > max_bytes {
+                continue;
+            }
+            used += c;
+            expanded[d] = true;
+            for c in visible_dirs(&dirs, d) {
+                heap.push((score(&dirs, c), Reverse(c)));
+            }
+        }
+        out = header.clone();
+        render_dir(&dirs, 0, &expanded, &notes, &mut out, 0);
+        let est = e.estimate(out.as_bytes());
+        if est <= budget || max_bytes < 1024 {
+            break;
+        }
+        max_bytes = (max_bytes as f64 * budget as f64 / est as f64 * 0.97) as usize;
     }
-
-    let mut out = header;
-    render_dir(&dirs, 0, &expanded, &notes, &mut out, 0);
+    e.enforce_budget(&mut out, budget);
     out
 }
 
@@ -336,6 +354,14 @@ fn dir_path(dirs: &[Dir], d: usize, root: &Path) -> std::path::PathBuf {
 }
 
 fn file_note(e: &Engine, path: &Path, size: u64, symbols: bool) -> String {
+    if let Ok(md) = std::fs::symlink_metadata(path)
+        && md.file_type().is_symlink()
+    {
+        return match std::fs::read_link(path) {
+            Ok(t) => format!("→ {}", t.display()),
+            Err(_) => "→ ?".to_string(),
+        };
+    }
     if size > crate::source::MAX_PARSE as u64 {
         return human_bytes(size);
     }
@@ -444,8 +470,8 @@ fn render_dir(
         ));
     }
     let files = &dirs[d].files;
-    let shown = if files.len() > MAX_FILES + 2 {
-        MAX_FILES
+    let shown = if files.len() > file_cap(d) + 2 {
+        file_cap(d)
     } else {
         files.len()
     };

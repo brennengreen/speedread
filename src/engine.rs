@@ -19,11 +19,59 @@ use crate::workspace::Workspace;
 pub struct Config {
     pub default_budget: usize,
     pub max_budget: usize,
-    /// Conservative bytes-per-token for budget estimates. Claude 4.7+
-    /// tokenizers emit ~30% more tokens than older ones; line-numbered code
-    /// measures ~3.3 bytes/token on the legacy Claude tokenizer and ~3.9 on
-    /// o200k, so 2.6 keeps estimates at or above real counts.
+    /// Bytes per token for byte-based sizing before the content-aware
+    /// estimate (`tokens`) checks the result. See `Tokenizer`.
     pub bytes_per_token: f32,
+}
+
+/// Which tokenizer family budgets are calibrated to.
+///
+/// The content-aware estimate is fitted to the larger of o200k_base and the
+/// legacy Claude tokenizer (evals/fit_estimator.py). Current Claude models
+/// (4.7+) tokenize denser: exact counts recovered from real sessions
+/// (evals/tokenizer_calibration.py) run 1.40× the estimate at the median for
+/// speedread's own output (p90 1.49×) and 1.15× for plain numbered code.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tokenizer {
+    /// o200k / legacy Claude (the default for unknown clients).
+    Legacy,
+    /// Claude 4.7+ models.
+    Claude,
+    /// OpenAI o200k models (fewer tokens per byte than the estimate).
+    OpenAi,
+}
+
+impl Tokenizer {
+    pub fn parse(s: &str) -> Option<Tokenizer> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "legacy" | "default" | "o200k-or-legacy" => Some(Tokenizer::Legacy),
+            "claude" | "anthropic" => Some(Tokenizer::Claude),
+            "openai" | "o200k" | "gpt" | "codex" => Some(Tokenizer::OpenAi),
+            _ => None,
+        }
+    }
+
+    /// Tokenizer implied by an MCP client name, when the client only runs one
+    /// model family.
+    pub fn for_client(name: &str) -> Option<Tokenizer> {
+        let n = name.to_ascii_lowercase();
+        if n.contains("claude") {
+            Some(Tokenizer::Claude)
+        } else if n.contains("codex") || n.contains("openai") {
+            Some(Tokenizer::OpenAi)
+        } else {
+            None
+        }
+    }
+
+    /// (bytes per token for byte-based sizing, scale applied to estimates).
+    pub fn params(self) -> (f32, f32) {
+        match self {
+            Tokenizer::Legacy => (2.6, 1.0),
+            Tokenizer::Claude => (2.6 / 1.4, 1.4),
+            Tokenizer::OpenAi => (3.6, 0.85),
+        }
+    }
 }
 
 impl Default for Config {
@@ -110,11 +158,14 @@ pub struct Engine {
     pub ws: Workspace,
     pub cfg: Config,
     bpt: AtomicU32,
+    /// Converts content-aware estimates to the client's tokenizer.
+    token_scale: AtomicU32,
+    tokenizer_pinned: std::sync::atomic::AtomicBool,
     sources: Mutex<Lru<PathBuf, Arc<Source>>>,
     outlines: Mutex<Lru<(u64, LangId), Arc<Outline>>>,
-    snapshots: Mutex<Lru<u32, Arc<Source>>>,
+    snapshots: Mutex<Lru<u64, Arc<Source>>>,
     bigs: Mutex<Lru<PathBuf, Arc<BigFile>>>,
-    big_snaps: Mutex<Lru<u32, BigSnap>>,
+    big_snaps: Mutex<Lru<u64, BigSnap>>,
     files: Mutex<FileListCache>,
 }
 
@@ -123,6 +174,8 @@ impl Engine {
         Engine {
             ws,
             bpt: AtomicU32::new(cfg.bytes_per_token.to_bits()),
+            token_scale: AtomicU32::new(1.0f32.to_bits()),
+            tokenizer_pinned: std::sync::atomic::AtomicBool::new(false),
             cfg,
             sources: Mutex::new(Lru::new(512 << 20)),
             outlines: Mutex::new(Lru::new(8192)),
@@ -135,6 +188,60 @@ impl Engine {
 
     fn bpt(&self) -> f32 {
         f32::from_bits(self.bpt.load(Ordering::Relaxed))
+    }
+
+    pub fn token_scale(&self) -> f32 {
+        f32::from_bits(self.token_scale.load(Ordering::Relaxed))
+    }
+
+    /// OpenAI tokenizers (o200k) need fewer tokens than the estimate's
+    /// Claude-calibrated fit.
+    pub fn set_token_scale(&self, v: f32) {
+        self.token_scale.store(v.to_bits(), Ordering::Relaxed);
+    }
+
+    /// Content-aware token estimate of rendered text.
+    pub fn estimate(&self, text: &[u8]) -> usize {
+        (crate::tokens::estimate(text) * self.token_scale()).ceil() as usize
+    }
+
+    /// Bytes per token for views of `src`: the configured ratio, or less for
+    /// token-dense content (JSON, SVG, base64, CJK…). Never more optimistic
+    /// than the configured ratio.
+    pub fn bpt_for(&self, src: &Source, numbers: bool) -> f32 {
+        let base = self.bpt();
+        let raw = src.data.len() as f32;
+        if raw < 256.0 {
+            return base;
+        }
+        let n = src.line_count() as f32;
+        let (num_bytes, num_tokens) = if numbers {
+            let d = (n.max(1.0).log10().floor() + 1.0).max(1.0);
+            (n * (d + 1.0), n * crate::tokens::line_number_tokens(d))
+        } else {
+            (0.0, 0.0)
+        };
+        let est = (src.est_tokens() + num_tokens) * self.token_scale();
+        ((raw + num_bytes) / est.max(1.0)).min(base)
+    }
+
+    /// Trim a finished response so its estimate fits `budget` (+5%).
+    pub fn enforce_budget(&self, out: &mut String, budget: usize) -> bool {
+        crate::tokens::fit_text(out, budget + budget / 20, self.token_scale())
+    }
+
+    /// Calibrate budgets to a tokenizer family. Ignored once pinned (e.g. by
+    /// `SPEEDREAD_TOKENIZER`), so client detection can't override the user.
+    pub fn set_tokenizer(&self, t: Tokenizer, pin: bool) {
+        if self.tokenizer_pinned.load(Ordering::Relaxed) && !pin {
+            return;
+        }
+        let (bpt, scale) = t.params();
+        self.set_bytes_per_token(bpt);
+        self.set_token_scale(scale);
+        if pin {
+            self.tokenizer_pinned.store(true, Ordering::Relaxed);
+        }
     }
 
     pub fn set_bytes_per_token(&self, v: f32) {
@@ -229,7 +336,7 @@ impl Engine {
         self.snapshots.lock().insert(src.etag(), src.clone(), cost);
     }
 
-    pub fn snapshot(&self, etag: u32) -> Option<Arc<Source>> {
+    pub fn snapshot(&self, etag: u64) -> Option<Arc<Source>> {
         self.snapshots.lock().get(&etag)
     }
 
@@ -243,7 +350,7 @@ impl Engine {
         self.big_snaps.lock().insert(b.etag(), snap, 1);
     }
 
-    pub fn big_snapshot(&self, etag: u32) -> Option<BigSnap> {
+    pub fn big_snapshot(&self, etag: u64) -> Option<BigSnap> {
         self.big_snaps.lock().get(&etag)
     }
 
@@ -291,5 +398,34 @@ mod tests {
         assert_eq!(l.get(&2), None);
         assert_eq!(l.get(&1), Some(1));
         assert_eq!(l.get(&3), Some(3));
+    }
+
+    #[test]
+    fn tokenizer_profiles() {
+        use Tokenizer::*;
+        assert_eq!(Tokenizer::for_client("claude-code"), Some(Claude));
+        assert_eq!(Tokenizer::for_client("Claude Desktop"), Some(Claude));
+        assert_eq!(Tokenizer::for_client("codex-mcp-client"), Some(OpenAi));
+        assert_eq!(Tokenizer::for_client("Visual Studio Code"), None);
+        assert_eq!(Tokenizer::parse(" CLAUDE "), Some(Claude));
+        assert_eq!(Tokenizer::parse("nope"), None);
+
+        let dir = std::env::temp_dir();
+        let ws = Workspace::new(vec![dir], false, false).unwrap();
+        let e = Engine::new(ws, Config::default());
+        let text = "fn parse(x: u32) -> u32 {\n    x + 1\n}\n".repeat(20);
+        let base = e.estimate(text.as_bytes());
+        let base_bytes = e.bytes_for(1000);
+        e.set_tokenizer(Claude, false);
+        let claude = e.estimate(text.as_bytes());
+        assert!(
+            (claude as f32 / base as f32 - 1.4).abs() < 0.02,
+            "{claude} vs {base}"
+        );
+        assert!(e.bytes_for(1000) < base_bytes);
+        // A pinned choice (SPEEDREAD_TOKENIZER) wins over client detection.
+        e.set_tokenizer(Legacy, true);
+        e.set_tokenizer(OpenAi, false);
+        assert_eq!(e.estimate(text.as_bytes()), base);
     }
 }

@@ -339,6 +339,34 @@ fn sanitize_apple_macros(src: &[u8]) -> Option<Vec<u8>> {
 
 /// Parse `src` and extract its outline. Returns `None` if the language has no
 /// grammar or parsing failed.
+/// Parse `src` into a syntax tree (code languages only). Byte offsets match
+/// `src` exactly (Apple SDK macros are blanked in place, not removed).
+pub fn parse_tree(lang: LangId, src: &[u8]) -> Option<tree_sitter::Tree> {
+    if lang.is_structured_data() {
+        return None;
+    }
+    let grammar = lang.grammar()?;
+    let cleaned = if matches!(lang, LangId::ObjC | LangId::C | LangId::Cpp) {
+        sanitize_apple_macros(src)
+    } else {
+        None
+    };
+    let src: &[u8] = cleaned.as_deref().unwrap_or(src);
+    PARSERS.with(|cell| {
+        let mut parsers = cell.borrow_mut();
+        let idx = match parsers.iter().position(|(l, _)| *l == lang) {
+            Some(i) => i,
+            None => {
+                let mut p = Parser::new();
+                p.set_language(&grammar).ok()?;
+                parsers.push((lang, p));
+                parsers.len() - 1
+            }
+        };
+        parsers[idx].1.parse(src, None)
+    })
+}
+
 pub fn parse_outline(lang: LangId, src: &[u8], lines: &[u32]) -> Option<Outline> {
     if lang.is_structured_data() {
         return Some(crate::structured::outline(lang, src, lines));

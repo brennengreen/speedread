@@ -1,0 +1,82 @@
+1. Orient in a repository (ls root + each top-level dir, vs one map) — grader: every top-level entry named
+  PASS orient: flask (4 top-level dirs)                             base  5 calls     304 tok | speedread 1 calls  1,801 tok 
+  PASS orient: gin (8 top-level dirs)                               base  9 calls     437 tok | speedread 1 calls    920 tok 
+  PASS orient: ripgrep (8 top-level dirs)                           base  9 calls     232 tok | speedread 1 calls  2,060 tok 
+  PASS orient: zod (5 top-level dirs)                               base  6 calls     247 tok | speedread 1 calls  2,412 tok 
+  PASS orient: vscode (8 top-level dirs)                            base  9 calls   1,009 tok | speedread 1 calls  2,745 tok 
+2. Understand a large file (page through it, vs one read) — grader: every top-level definition visible
+  PASS large file: defs.rs (8,161 lines)                            base  5 calls 105,147 tok | speedread 1 calls  6,179 tok [outline; 221/223 top-level defs]
+  PASS large file: types.ts (5,138 lines)                           base  3 calls  67,281 tok | speedread 1 calls  5,792 tok [outline; 149/149 top-level defs]
+  PASS large file: textModel.ts (2,745 lines)                       base  2 calls  39,756 tok | speedread 1 calls  4,959 tok [outline; 24/24 top-level defs]
+  PASS large file: app.py (1,628 lines)                             base  1 calls  21,264 tok | speedread 1 calls  3,367 tok [skeleton; 4/4 top-level defs]
+  PASS large file: context.go (1,544 lines)                         base  1 calls  19,362 tok | speedread 1 calls  2,801 tok [outline; 150/150 top-level defs]
+  PASS large file: Session.swift (1,441 lines)                      base  1 calls  22,184 tok | speedread 1 calls  2,046 tok [outline; 1/1 top-level defs]
+3. Read one function in a known file — grader: the complete function text is present
+  PASS function Flask.url_for: read whole file                      base  1 calls  21,264 tok | speedread 1 calls  1,392 tok 
+  PASS function Flask.url_for: grep file + exact window (best case) base  2 calls   2,082 tok | speedread 1 calls  1,392 tok 
+  PASS function Context.AbortWithStatusJSON: read whole file        base  1 calls  19,362 tok | speedread 1 calls    119 tok 
+  PASS function Context.AbortWithStatusJSON: grep file + exact window (best case) base  2 calls     388 tok | speedread 1 calls    119 tok 
+  PASS function WalkParallel.run: read whole file                   base  2 calls  34,449 tok | speedread 1 calls    146 tok 
+  PASS function WalkParallel.run: grep file + exact window (best case) base  2 calls     581 tok | speedread 1 calls    146 tok 
+  PASS function ZodString._parse: read whole file                   base  3 calls  67,281 tok | speedread 1 calls  2,690 tok 
+  PASS function ZodString._parse: grep file + exact window (best case) base  2 calls   4,863 tok | speedread 1 calls  2,690 tok 
+  PASS function TextModel.setValue: read whole file                 base  2 calls  39,756 tok | speedread 1 calls    136 tok 
+  PASS function TextModel.setValue: grep file + exact window (best case) base  2 calls     448 tok | speedread 1 calls    136 tok 
+4. Re-read a file after a one-line edit (full re-read, vs path@etag) — grader: the edit is shown
+  PASS re-read after edit: defs.rs                                  base  5 calls 105,164 tok | speedread 1 calls     94 tok 
+  PASS re-read after edit: types.ts                                 base  3 calls  67,296 tok | speedread 1 calls    111 tok 
+  PASS re-read after edit: textModel.ts                             base  2 calls  39,772 tok | speedread 1 calls    159 tok 
+  PASS re-read after edit: app.py                                   base  1 calls  21,279 tok | speedread 1 calls    124 tok 
+5. Find usages + read the calling code (grep + top-3 files, vs search output=symbols) — grader: shown files complete, totals exact
+  PASS usages of url_for (flask, 47 files)                          base  4 calls  41,840 tok | speedread 1 calls  4,168 tok [34/47 files shown in full]
+  PASS usages of AbortWithStatus (gin, 8 files)                     base  4 calls  25,999 tok | speedread 1 calls  4,526 tok [8/8 files shown in full]
+  PASS usages of build_parallel (ripgrep, 3 files)                  base  5 calls  41,579 tok | speedread 1 calls  2,763 tok [3/3 files shown in full]
+  PASS usages of safeParse (zod, 188 files)                         base  4 calls 134,994 tok | speedread 1 calls  6,065 tok [23/188 files shown in full]
+6. Follow a growing log (tail -n 200, vs log@etag) — grader: all new lines, no old ones
+  PASS follow log: 30 lines appended to 5,000                       base  1 calls   3,969 tok | speedread 1 calls    703 tok 
+7. Balanced: small files must come back complete and unmodified — grader: every line present
+  PASS small file: gin/go.mod (41 lines)                            base  1 calls     728 tok | speedread 1 calls    657 tok 
+  PASS small file: flask/src/flask/__init__.py (39 lines)           base  1 calls     579 tok | speedread 1 calls    484 tok 
+  PASS small file: ripgrep/Cargo.toml (126 lines)                   base  1 calls   1,589 tok | speedread 1 calls  1,288 tok 
+  PASS small file: zod/package.json (97 lines)                      base  1 calls   1,514 tok | speedread 1 calls  1,243 tok 
+  PASS small file: Alamofire/Package.swift (52 lines)               base  1 calls     735 tok | speedread 1 calls    646 tok 
+
+| Scenario | Graded | Baseline calls | Baseline tokens | speedread calls | speedread tokens | Tokens saved |
+|---|:---:|---:|---:|---:|---:|---:|
+| orient: flask (4 top-level dirs) | ✓ | 5 | 304 | 1 | 1,801 | -492% |
+| orient: gin (8 top-level dirs) | ✓ | 9 | 437 | 1 | 920 | -111% |
+| orient: ripgrep (8 top-level dirs) | ✓ | 9 | 232 | 1 | 2,060 | -788% |
+| orient: zod (5 top-level dirs) | ✓ | 6 | 247 | 1 | 2,412 | -877% |
+| orient: vscode (8 top-level dirs) | ✓ | 9 | 1,009 | 1 | 2,745 | -172% |
+| large file: defs.rs (8,161 lines) | ✓ 99% | 5 | 105,147 | 1 | 6,179 | 94% |
+| large file: types.ts (5,138 lines) | ✓ | 3 | 67,281 | 1 | 5,792 | 91% |
+| large file: textModel.ts (2,745 lines) | ✓ | 2 | 39,756 | 1 | 4,959 | 88% |
+| large file: app.py (1,628 lines) | ✓ | 1 | 21,264 | 1 | 3,367 | 84% |
+| large file: context.go (1,544 lines) | ✓ | 1 | 19,362 | 1 | 2,801 | 86% |
+| large file: Session.swift (1,441 lines) | ✓ | 1 | 22,184 | 1 | 2,046 | 91% |
+| function Flask.url_for: read whole file | ✓ | 1 | 21,264 | 1 | 1,392 | 93% |
+| function Flask.url_for: grep file  exact window (best case) | ✓ | 2 | 2,082 | 1 | 1,392 | 33% |
+| function Context.AbortWithStatusJSON: read whole file | ✓ | 1 | 19,362 | 1 | 119 | 99% |
+| function Context.AbortWithStatusJSON: grep file  exact window (best case) | ✓ | 2 | 388 | 1 | 119 | 69% |
+| function WalkParallel.run: read whole file | ✓ | 2 | 34,449 | 1 | 146 | 100% |
+| function WalkParallel.run: grep file  exact window (best case) | ✓ | 2 | 581 | 1 | 146 | 75% |
+| function ZodString._parse: read whole file | ✓ | 3 | 67,281 | 1 | 2,690 | 96% |
+| function ZodString._parse: grep file  exact window (best case) | ✓ | 2 | 4,863 | 1 | 2,690 | 45% |
+| function TextModel.setValue: read whole file | ✓ | 2 | 39,756 | 1 | 136 | 100% |
+| function TextModel.setValue: grep file  exact window (best case) | ✓ | 2 | 448 | 1 | 136 | 70% |
+| re-read after edit: defs.rs | ✓ | 5 | 105,164 | 1 | 94 | 100% |
+| re-read after edit: types.ts | ✓ | 3 | 67,296 | 1 | 111 | 100% |
+| re-read after edit: textModel.ts | ✓ | 2 | 39,772 | 1 | 159 | 100% |
+| re-read after edit: app.py | ✓ | 1 | 21,279 | 1 | 124 | 99% |
+| usages of url_for (flask, 47 files) | ✓ 62% | 4 | 41,840 | 1 | 4,168 | 90% |
+| usages of AbortWithStatus (gin, 8 files) | ✓ | 4 | 25,999 | 1 | 4,526 | 83% |
+| usages of build_parallel (ripgrep, 3 files) | ✓ | 5 | 41,579 | 1 | 2,763 | 93% |
+| usages of safeParse (zod, 188 files) | ✓ 8% | 4 | 134,994 | 1 | 6,065 | 96% |
+| follow log: 30 lines appended to 5,000 | ✓ | 1 | 3,969 | 1 | 703 | 82% |
+| small file: gin/go.mod (41 lines) | ✓ | 1 | 728 | 1 | 657 | 10% |
+| small file: flask/src/flask/__init__.py (39 lines) | ✓ | 1 | 579 | 1 | 484 | 16% |
+| small file: ripgrep/Cargo.toml (126 lines) | ✓ | 1 | 1,589 | 1 | 1,288 | 19% |
+| small file: zod/package.json (97 lines) | ✓ | 1 | 1,514 | 1 | 1,243 | 18% |
+| small file: Alamofire/Package.swift (52 lines) | ✓ | 1 | 735 | 1 | 646 | 12% |
+
+Graded: 35/35 scenarios pass. Total: baseline 104 calls / 954,734 tokens; speedread 35 calls / 67,079 tokens (93% fewer tokens, 66% fewer calls). Tokens: o200k_base.

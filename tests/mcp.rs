@@ -96,7 +96,7 @@ fn etag_of(out: &str, file: &str) -> String {
         .find(file)
         .unwrap_or_else(|| panic!("{file} not in {out}"));
     let at = out[i..].find('@').unwrap() + i + 1;
-    out[at..at + 8].to_string()
+    out[at..at + 16].to_string()
 }
 
 #[test]
@@ -134,7 +134,7 @@ fn mcp_session_end_to_end() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, vec!["map", "read", "search"]);
+    assert_eq!(names, vec!["map", "read", "search", "trace"]);
     for t in tools["result"]["tools"].as_array().unwrap() {
         assert_eq!(t["annotations"]["readOnlyHint"], json!(true));
     }
@@ -162,12 +162,53 @@ fn mcp_session_end_to_end() {
         out.contains(&format!("(was @{lib_tag}): 1 hunk, +1 -1")),
         "{out}"
     );
+    // Symbol-aware: the changed function is named, with its signature status,
+    // and the hunk carries git-style function context.
+    assert!(
+        out.contains("symbols:\n  add [1-7]: body changed, signature unchanged\n"),
+        "{out}"
+    );
+    assert!(out.contains("@@ add\n"), "{out}");
     assert!(
         out.contains("-    let d = c;\n+    let d = c * 2;"),
         "{out}"
     );
     assert!(out.contains("+1 line appended"), "{out}");
     assert!(out.contains("2\tready"), "{out}");
+
+    // Signature change + added function, summarised without hunks (mode=outline).
+    let tag = etag_of(&out, "src/lib.rs");
+    let src = std::fs::read_to_string(dir.join("src/lib.rs")).unwrap();
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        src.replace("pub fn f3() -> u32 {", "pub fn f3(k: u32) -> u32 {")
+            + "\npub fn g() -> u8 {\n    1\n}\n",
+    )
+    .unwrap();
+    let out = c.call(
+        "read",
+        json!({"targets": [format!("src/lib.rs@{tag}")], "mode": "outline"}),
+    );
+    assert!(
+        out.contains(
+            "f3 [25-27]: signature changed: `pub fn f3() -> u32` → `pub fn f3(k: u32) -> u32`"
+        ),
+        "{out}"
+    );
+    assert!(
+        out.contains("g [133-135]: added `pub fn g() -> u8`"),
+        "{out}"
+    );
+    assert!(!out.contains("@@"), "{out}");
+    let src = std::fs::read_to_string(dir.join("src/lib.rs")).unwrap();
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        src.replace("pub fn f3(k: u32) -> u32 {", "pub fn f3() -> u32 {")
+            .replace("\npub fn g() -> u8 {\n    1\n}\n", ""),
+    )
+    .unwrap();
+    let out = c.call("read", json!({"targets": [format!("src/lib.rs@{tag}")]}));
+    assert!(out.contains("unchanged (131 lines)"), "{out}");
 
     // Unchanged file → one line.
     let new_tag = etag_of(&out, "src/lib.rs");
@@ -183,6 +224,30 @@ fn mcp_session_end_to_end() {
         out.contains("[1-7] pub fn add(a: i32, b: i32) -> i32"),
         "{out}"
     );
+
+    // Trace: callers grouped by enclosing function, callees resolved.
+    std::fs::write(
+        dir.join("src/use.rs"),
+        "use crate::add;\n\npub fn twice(x: i32) -> i32 {\n    // add(1, 2) in a comment is not a call\n    let s = \"add(\";\n    add(x, x)\n}\n",
+    )
+    .unwrap();
+    let out = c.call("trace", json!({"target": "#add"}));
+    assert!(out.contains("==> callers of add (src/lib.rs:1-7)"), "{out}");
+    assert!(out.contains("1 call site in 1 function"), "{out}");
+    assert!(
+        out.contains("[3-7] pub fn twice(x: i32) -> i32\n    6\tadd(x, x)"),
+        "{out}"
+    );
+    let out = c.call(
+        "trace",
+        json!({"target": "src/use.rs#twice", "direction": "callees"}),
+    );
+    assert!(
+        out.contains("→ src/lib.rs:1-7 pub fn add(a: i32, b: i32) -> i32"),
+        "{out}"
+    );
+    let out = c.call("trace", json!({"target": "add", "direction": "references"}));
+    assert!(out.contains("1 import"), "{out}");
 
     // Map lists files with line counts and symbols.
     let out = c.call("map", json!({"symbols": true}));

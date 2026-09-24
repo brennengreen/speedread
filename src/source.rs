@@ -56,6 +56,8 @@ pub struct Source {
     /// Content is not valid UTF-8 (rendered lossily).
     pub lossy: bool,
     pub lang: Option<LangId>,
+    /// Estimated tokens of `data` (computed on first use).
+    est_tokens: std::sync::OnceLock<f32>,
 }
 
 impl Source {
@@ -121,11 +123,19 @@ impl Source {
             crlf,
             lossy,
             lang,
+            est_tokens: std::sync::OnceLock::new(),
         }
     }
 
-    pub fn etag(&self) -> u32 {
-        self.hash as u32
+    /// Content-aware token estimate of the whole file (see `tokens`).
+    pub fn est_tokens(&self) -> f32 {
+        *self
+            .est_tokens
+            .get_or_init(|| crate::tokens::estimate(&self.data))
+    }
+
+    pub fn etag(&self) -> u64 {
+        self.hash
     }
 
     pub fn line_count(&self) -> usize {
@@ -264,8 +274,8 @@ impl BigFile {
         })
     }
 
-    pub fn etag(&self) -> u32 {
-        self.hash as u32
+    pub fn etag(&self) -> u64 {
+        self.hash
     }
 
     /// Lines `a..=b` (0-based), stopping once `max_bytes` have been collected.

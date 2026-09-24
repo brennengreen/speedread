@@ -49,6 +49,14 @@ enum ModeArg {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+enum DirectionArg {
+    Callers,
+    Callees,
+    Refs,
+    Impls,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
 enum OutputArg {
     Matches,
     Symbols,
@@ -87,6 +95,9 @@ enum Cmd {
         context: usize,
         #[arg(long, value_enum, default_value = "matches")]
         output: OutputArg,
+        /// Emit JSON Lines (unbudgeted) for scripts: one record per match/symbol/file.
+        #[arg(long)]
+        json: bool,
     },
     /// Directory overview with line counts (and top-level symbols with --symbols).
     Map {
@@ -97,6 +108,26 @@ enum Cmd {
         depth: Option<usize>,
         #[arg(short = 'g', long = "glob")]
         globs: Vec<String>,
+        /// Emit JSON Lines (unbudgeted): {path, bytes, lines} per file.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Relationships of a symbol: callers, callees, references or implementations.
+    Trace {
+        /// `#Name`, `Type.method`, `path#Name` or `path:LINE`.
+        target: String,
+        #[arg(short = 'd', long, value_enum, default_value = "callers")]
+        direction: DirectionArg,
+        /// Levels to follow (1-3) for callers/callees/impls.
+        #[arg(long, default_value_t = 1)]
+        depth: usize,
+    },
+    /// List symbols (functions, types, headings, keys) in files, directories or globs.
+    Symbols {
+        targets: Vec<String>,
+        /// Emit JSON Lines: {path, name, qualified, kind, start, end, def, depth, signature}.
+        #[arg(long)]
+        json: bool,
     },
     /// Walk a directory and report file count and time (benchmarking).
     #[command(hide = true)]
@@ -132,6 +163,14 @@ fn main() -> anyhow::Result<()> {
         ..Config::default()
     };
     let engine = Arc::new(Engine::new(ws, cfg));
+    // SPEEDREAD_TOKENIZER=claude|openai|legacy pins the budget calibration
+    // (default: detect from the MCP client, else legacy).
+    if let Some(t) = std::env::var("SPEEDREAD_TOKENIZER")
+        .ok()
+        .and_then(|v| speedread::engine::Tokenizer::parse(&v))
+    {
+        engine.set_tokenizer(t, true);
+    }
     let budget = Some(cli.budget);
     let cli_budget = cli.budget_set.then_some(cli.budget);
     let cmd = match cli.cmd {
@@ -181,6 +220,7 @@ fn main() -> anyhow::Result<()> {
             case_sensitive,
             context,
             output,
+            json,
         } => {
             let req = SearchRequest {
                 pattern,
@@ -204,14 +244,33 @@ fn main() -> anyhow::Result<()> {
                 budget,
                 max_matches: 5000,
             };
-            print!("{}", speedread::search::search(&engine, &req));
+            if json {
+                let max = if req.max_matches == 5000 {
+                    1_000_000
+                } else {
+                    req.max_matches
+                };
+                let req = SearchRequest {
+                    max_matches: max,
+                    ..req
+                };
+                emit(|w| speedread::json::search(&engine, &req, w))?;
+            } else {
+                print!("{}", speedread::search::search(&engine, &req));
+            }
         }
         Cmd::Map {
             path,
             symbols,
             depth,
             globs,
+            json,
         } => {
+            if json {
+                return emit(|w| {
+                    speedread::json::files(&engine, path.as_deref(), &globs, depth, w)
+                });
+            }
             let budget = cli_budget.or(Some(speedread::map::DEFAULT_MAP_BUDGET));
             let req = speedread::map::MapRequest {
                 path,
@@ -221,6 +280,50 @@ fn main() -> anyhow::Result<()> {
                 budget,
             };
             print!("{}", speedread::map::map(&engine, &req));
+        }
+        Cmd::Trace {
+            target,
+            direction,
+            depth,
+        } => {
+            use speedread::trace::{Direction, TraceRequest};
+            let req = TraceRequest {
+                target,
+                direction: match direction {
+                    DirectionArg::Callers => Direction::Callers,
+                    DirectionArg::Callees => Direction::Callees,
+                    DirectionArg::Refs => Direction::Refs,
+                    DirectionArg::Impls => Direction::Impls,
+                },
+                depth,
+                budget: cli_budget,
+            };
+            print!("{}", speedread::trace::trace(&engine, &req));
+        }
+        Cmd::Symbols { targets, json } => {
+            if json {
+                return emit(|w| speedread::json::symbols(&engine, &targets, w));
+            }
+            let records =
+                speedread::json::symbol_records(&engine, &targets).map_err(anyhow::Error::msg)?;
+            let mut out = std::io::BufWriter::new(std::io::stdout().lock());
+            use std::io::Write;
+            for v in &records {
+                let r = writeln!(
+                    out,
+                    "{}:{}-{}\t{}\t{}\t{}",
+                    v["path"].as_str().unwrap_or(""),
+                    v["start"],
+                    v["end"],
+                    v["kind"].as_str().unwrap_or(""),
+                    v["qualified"].as_str().unwrap_or(""),
+                    v["signature"].as_str().unwrap_or("")
+                );
+                if r.is_err() {
+                    break;
+                }
+            }
+            let _ = out.flush();
         }
         Cmd::BenchWalk { path } => {
             let t = std::time::Instant::now();
@@ -238,10 +341,27 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Stream JSON Lines to stdout; a closed pipe (`| head`) is not an error.
+fn emit(
+    f: impl FnOnce(&mut std::io::BufWriter<std::io::StdoutLock<'static>>) -> Result<usize, String>,
+) -> anyhow::Result<()> {
+    use std::io::Write;
+    let mut w = std::io::BufWriter::with_capacity(1 << 16, std::io::stdout().lock());
+    match f(&mut w) {
+        Ok(_) => {}
+        Err(e) if e.contains("Broken pipe") => return Ok(()),
+        Err(e) => anyhow::bail!(e),
+    }
+    match w.flush() {
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        r => Ok(r?),
+    }
+}
+
 fn debug(engine: &Engine, file: &std::path::Path, sexp: bool, views: bool) -> anyhow::Result<()> {
     let src = speedread::source::Source::load(file)?;
     println!(
-        "lang={:?} lines={} binary={} etag={:08x}",
+        "lang={:?} lines={} binary={} etag={:016x}",
         src.lang,
         src.line_count(),
         src.binary,

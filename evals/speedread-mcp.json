@@ -1,0 +1,1 @@
+{ "mcpServers": { "speedread": { "type": "local", "command": "speedread", "args": ["mcp"], "tools": ["*"] } } }

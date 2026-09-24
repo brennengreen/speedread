@@ -1,0 +1,190 @@
+{
+ "suite": "speedread-coding",
+ "description": "SWE-style bug fixes on real repositories. A one-line regression is injected; the agent gets a bug report (symptom only, no file names) and must locate and fix it. Graded by the repository's own full test suite; tests must be left unmodified. Every task is verified to fail as injected and to pass with the reference fix (evals/coding_eval.py --verify).",
+ "tasks": [
+  {
+   "id": "gin-client-ip",
+   "repo": "gin",
+   "difficulty": "medium",
+   "prompt": "Bug report: behind trusted proxies, c.ClientIP() returns the proxy's address instead of the client's. With the header `X-Forwarded-For: 20.20.20.20, 30.30.30.30` and 30.30.30.30 configured as a trusted proxy, ClientIP() should return 20.20.20.20. Find and fix the bug in the library code (do not modify tests). Verify with `go test ./...`. When done, reply with a one-line summary of the fix.",
+   "inject": [
+    {
+     "file": "gin.go",
+     "find": "if (i == 0) || (!engine.isTrustedProxy(ip)) {",
+     "replace": "if (i == 0) || (engine.isTrustedProxy(ip)) {"
+    }
+   ],
+   "decisive": {
+    "file": "gin.go",
+    "snippet": "|| (engine.isTrustedProxy(ip))",
+    "symbol": "Engine.validateHeader"
+   },
+   "test": "go test -timeout 300s ./...",
+   "protect": [
+    "_test.go",
+    "testdata/"
+   ]
+  },
+  {
+   "id": "gin-catchall-param",
+   "repo": "gin",
+   "difficulty": "hard",
+   "prompt": "Bug report: for catch-all routes such as `router.GET(\"/static/*filepath\", h)`, c.Param(\"filepath\") now returns an empty string (a request to /static/css/app.css should give \"/css/app.css\"), and serving a directory with router.Static returns 404 for every file. Find and fix the bug in the library code (do not modify tests). Verify with `go test ./...`. When done, reply with a one-line summary of the fix.",
+   "inject": [
+    {
+     "file": "tree.go",
+     "find": "Key:   n.path[2:],",
+     "replace": "Key:   n.path[1:],"
+    }
+   ],
+   "decisive": {
+    "file": "tree.go",
+    "snippet": "Key:   n.path[1:],",
+    "symbol": "node.getValue"
+   },
+   "test": "go test -timeout 300s ./...",
+   "protect": [
+    "_test.go",
+    "testdata/"
+   ]
+  },
+  {
+   "id": "gin-json-charset",
+   "repo": "gin",
+   "difficulty": "easy",
+   "prompt": "Bug report: responses written with c.JSON(...) are now sent with `Content-Type: application/json` - the `; charset=utf-8` parameter is missing, which breaks a client that relies on it (AsciiJSON is expected to stay plain `application/json`). Find and fix the bug in the library code (do not modify tests). Verify with `go test ./...`. When done, reply with a one-line summary of the fix.",
+   "inject": [
+    {
+     "file": "render/json.go",
+     "find": "jsonContentType      = []string{\"application/json; charset=utf-8\"}",
+     "replace": "jsonContentType      = []string{\"application/json\"}"
+    }
+   ],
+   "decisive": {
+    "file": "render/json.go",
+    "snippet": "jsonContentType      = []string{\"application/json\"}",
+    "symbol": "jsonContentType"
+   },
+   "test": "go test -timeout 300s ./...",
+   "protect": [
+    "_test.go",
+    "testdata/"
+   ]
+  },
+  {
+   "id": "gin-is-aborted",
+   "repo": "gin",
+   "difficulty": "easy",
+   "prompt": "Bug report: c.IsAborted() returns false right after c.Abort() has been called, so middleware that checks it lets requests continue. Find and fix the bug in the library code (do not modify tests). Verify with `go test ./...`. When done, reply with a one-line summary of the fix.",
+   "inject": [
+    {
+     "file": "context.go",
+     "find": "return c.index >= abortIndex",
+     "replace": "return c.index > abortIndex"
+    }
+   ],
+   "decisive": {
+    "file": "context.go",
+    "snippet": "return c.index > abortIndex",
+    "symbol": "Context.IsAborted"
+   },
+   "test": "go test -timeout 300s ./...",
+   "protect": [
+    "_test.go",
+    "testdata/"
+   ]
+  },
+  {
+   "id": "flask-prefixed-env",
+   "repo": "flask",
+   "venv": "flask",
+   "difficulty": "medium",
+   "prompt": "Bug report: app.config.from_prefixed_env() raises KeyError for a nested variable such as `FLASK_NEW__KEY=1` when `NEW` is not in the config yet; per the documentation, missing intermediate dicts should be created. Find and fix the bug in the library code (do not modify tests). Verify with `PYTHONPATH=src .venv/bin/python -m pytest -q tests --deselect tests/test_cli.py::test_get_version`. When done, reply with a one-line summary of the fix.",
+   "inject": [
+    {
+     "file": "src/flask/config.py",
+     "find": "            for part in parts:\n                # If an intermediate dict does not exist, create it.\n                if part not in current:\n                    current[part] = {}\n\n                current = current[part]",
+     "replace": "            for part in parts:\n                current = current[part]"
+    }
+   ],
+   "decisive": {
+    "file": "src/flask/config.py",
+    "snippet": "*parts, tail = key.split(\"__\")",
+    "symbol": "Config.from_prefixed_env"
+   },
+   "test": "PYTHONPATH=src .venv/bin/python -m pytest -q -x tests --deselect tests/test_cli.py::test_get_version",
+   "protect": [
+    "tests/"
+   ]
+  },
+  {
+   "id": "flask-blueprint-url-prefix",
+   "repo": "flask",
+   "venv": "flask",
+   "difficulty": "medium",
+   "prompt": "Bug report: the url_prefix given when a blueprint is created is ignored: with `bp = Blueprint('api', __name__, url_prefix='/api')` and `@bp.route('/users')`, the route is served at '/users' instead of '/api/users' unless url_prefix is passed again to app.register_blueprint(). Find and fix the bug in the library code (do not modify tests). Verify with `PYTHONPATH=src .venv/bin/python -m pytest -q tests --deselect tests/test_cli.py::test_get_version`. When done, reply with a one-line summary of the fix.",
+   "inject": [
+    {
+     "file": "src/flask/sansio/blueprints.py",
+     "find": "        url_prefix = self.options.get(\"url_prefix\")\n        if url_prefix is None:\n            url_prefix = self.blueprint.url_prefix\n",
+     "replace": "        url_prefix = self.options.get(\"url_prefix\")\n"
+    }
+   ],
+   "decisive": {
+    "file": "src/flask/sansio/blueprints.py",
+    "snippet": "url_prefix = self.options.get(\"url_prefix\")",
+    "symbol": "BlueprintSetupState.__init__"
+   },
+   "test": "PYTHONPATH=src .venv/bin/python -m pytest -q -x tests --deselect tests/test_cli.py::test_get_version",
+   "protect": [
+    "tests/"
+   ]
+  },
+  {
+   "id": "flask-response-tuple",
+   "repo": "flask",
+   "venv": "flask",
+   "difficulty": "hard",
+   "prompt": "Bug report: returning a 2-tuple from a view function is broken: `return 'Created', 201` no longer sets the status code, and `return 'hi', {'X-Foo': 'bar'}` raises an error instead of adding the header. Find and fix the bug in the library code (do not modify tests). Verify with `PYTHONPATH=src .venv/bin/python -m pytest -q tests --deselect tests/test_cli.py::test_get_version`. When done, reply with a one-line summary of the fix.",
+   "inject": [
+    {
+     "file": "src/flask/app.py",
+     "find": "                if isinstance(rv[1], (Headers, dict, tuple, list)):\n                    rv, headers = rv  # pyright: ignore\n                else:\n                    rv, status = rv  # type: ignore[assignment,misc]",
+     "replace": "                if isinstance(rv[1], (Headers, dict, tuple, list)):\n                    rv, status = rv  # type: ignore[assignment,misc]\n                else:\n                    rv, headers = rv  # pyright: ignore"
+    }
+   ],
+   "decisive": {
+    "file": "src/flask/app.py",
+    "snippet": "if isinstance(rv[1], (Headers, dict, tuple, list)):",
+    "symbol": "Flask.make_response"
+   },
+   "test": "PYTHONPATH=src .venv/bin/python -m pytest -q -x tests --deselect tests/test_cli.py::test_get_version",
+   "protect": [
+    "tests/"
+   ]
+  },
+  {
+   "id": "flask-json-decimal",
+   "repo": "flask",
+   "venv": "flask",
+   "difficulty": "easy",
+   "prompt": "Bug report: jsonify(Decimal('10.5')) - and returning a dict that contains a Decimal - now raises `TypeError: Object of type Decimal is not JSON serializable`; Flask used to serialize Decimal values as strings. Find and fix the bug in the library code (do not modify tests). Verify with `PYTHONPATH=src .venv/bin/python -m pytest -q tests --deselect tests/test_cli.py::test_get_version`. When done, reply with a one-line summary of the fix.",
+   "inject": [
+    {
+     "file": "src/flask/json/provider.py",
+     "find": "if isinstance(o, (decimal.Decimal, uuid.UUID)):",
+     "replace": "if isinstance(o, uuid.UUID):"
+    }
+   ],
+   "decisive": {
+    "file": "src/flask/json/provider.py",
+    "snippet": "if isinstance(o, uuid.UUID):",
+    "symbol": "_default"
+   },
+   "test": "PYTHONPATH=src .venv/bin/python -m pytest -q -x tests --deselect tests/test_cli.py::test_get_version",
+   "protect": [
+    "tests/"
+   ]
+  }
+ ]
+}

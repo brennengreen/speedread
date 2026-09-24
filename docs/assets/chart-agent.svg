@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="556" viewBox="0 0 1280 556" role="img" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" xml:space="preserve">
+<defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+<style>text{white-space:pre}@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}.bar{transform-box:fill-box;transform-origin:left;animation:grow 1.1s cubic-bezier(.2,.8,.2,1) both}</style>
+<rect width="1280" height="556" rx="18" fill="#0b1020"/>
+
+<text x="40" y="50" font-size="25" font-weight="700" fill="#e7eaf3">Real agent, same model: speedread vs built-in tools</text>
+<text x="40" y="80" font-size="14.5" fill="#98a1b8">10 code questions × 3 trials per condition · claude-sonnet-5 via GitHub Copilot CLI · exact tokens from the harness&#x27;s usage log · pass@1 97% → 100%</text>
+<rect x="420" y="98" width="11" height="11" rx="2" fill="#64748b"/><text x="437" y="108" font-size="13" fill="#98a1b8">built-in tools</text><rect x="630" y="98" width="11" height="11" rx="2" fill="url(#g)"/><text x="647" y="108" font-size="13" fill="#98a1b8">speedread</text>
+<text x="40" y="156" font-size="16" fill="#e7eaf3">Input tokens per task</text>
+<rect class="bar" style="animation-delay:0.00s" x="420" y="132" width="510.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="146" font-size="13" fill="#98a1b8">75,511</text>
+<rect class="bar" style="animation-delay:0.15s" x="420" y="155" width="330.8" height="18" rx="4" fill="url(#g)"/>
+<text x="758.8343765891627" y="169" font-size="13" fill="#e7eaf3">48,984</text>
+<text x="1240" y="161" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−35%</text>
+<text x="40" y="218" font-size="16" fill="#e7eaf3">Model time per task (median)</text>
+<rect class="bar" style="animation-delay:0.07s" x="420" y="194" width="510.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="208" font-size="13" fill="#98a1b8">6.7 s</text>
+<rect class="bar" style="animation-delay:0.22s" x="420" y="217" width="268.6" height="18" rx="4" fill="url(#g)"/>
+<text x="696.5803293279929" y="231" font-size="13" fill="#e7eaf3">3.5 s</text>
+<text x="1240" y="223" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−47%</text>
+<text x="40" y="280" font-size="16" fill="#e7eaf3">Model calls (round trips)</text>
+<rect class="bar" style="animation-delay:0.14s" x="420" y="256" width="510.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="270" font-size="13" fill="#98a1b8">3.37</text>
+<rect class="bar" style="animation-delay:0.29s" x="420" y="279" width="328.2" height="18" rx="4" fill="url(#g)"/>
+<text x="756.2178217821781" y="293" font-size="13" fill="#e7eaf3">2.17</text>
+<text x="1240" y="285" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−36%</text>
+<text x="40" y="342" font-size="16" fill="#e7eaf3">Tool calls</text>
+<rect class="bar" style="animation-delay:0.21s" x="420" y="318" width="510.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="332" font-size="13" fill="#98a1b8">2.37</text>
+<rect class="bar" style="animation-delay:0.36s" x="420" y="341" width="258.6" height="18" rx="4" fill="url(#g)"/>
+<text x="686.5915492957747" y="355" font-size="13" fill="#e7eaf3">1.20</text>
+<text x="1240" y="347" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−49%</text>
+<text x="40" y="404" font-size="16" fill="#e7eaf3">Cost per task (AI units)</text>
+<rect class="bar" style="animation-delay:0.28s" x="420" y="380" width="510.0" height="18" rx="4" fill="#64748b"/>
+<text x="938.0" y="394" font-size="13" fill="#98a1b8">3.90</text>
+<rect class="bar" style="animation-delay:0.43s" x="420" y="403" width="401.1" height="18" rx="4" fill="url(#g)"/>
+<text x="829.0585275072451" y="417" font-size="13" fill="#e7eaf3">3.07</text>
+<text x="1240" y="409" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">−21%</text>
+<text x="40" y="466" font-size="16" fill="#e7eaf3">Correct on every trial (pass^3)</text>
+<rect class="bar" style="animation-delay:0.35s" x="420" y="442" width="459.0" height="18" rx="4" fill="#64748b"/>
+<text x="887.0" y="456" font-size="13" fill="#98a1b8">90%</text>
+<rect class="bar" style="animation-delay:0.50s" x="420" y="465" width="510.0" height="18" rx="4" fill="url(#g)"/>
+<text x="938.0" y="479" font-size="13" fill="#e7eaf3">100%</text>
+<text x="1240" y="471" text-anchor="end" font-size="22" font-weight="700" fill="#34d399">100%</text>
+<text x="40" y="530" font-size="13" fill="#5d6784">Merely installed next to the built-in tools, speedread was used in 0% of 10 trials. Adoption is part of the product: make it the reader (see README).</text>
+</svg>

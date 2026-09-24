@@ -1,6 +1,6 @@
 # Research: why agents read files badly, and what the fastest reader looks like
 
-This document summarizes the research behind speedread's design: how today's coding agents read files, where their tokens and turns go, which techniques have evidence behind them, what macOS offers for speed, and what MCP clients allow. Numbers marked **(measured)** come from our own experiments on an Apple M4 (see [bench/RESULTS.md](../bench/RESULTS.md)). Everything else is cited. Research was conducted in September 2026.
+This document summarizes the research behind speedread's design: how today's coding agents read files, where their tokens and turns go, which techniques have evidence behind them, what macOS offers for speed, and what MCP clients allow. Numbers marked **(measured)** come from our own experiments on an Apple M4 (see [evals/RESULTS.md](../evals/RESULTS.md)). Everything else is cited. Research was conducted in September 2026.
 
 ## 1. Findings in brief
 
@@ -11,6 +11,7 @@ This document summarizes the research behind speedread's design: how today's cod
 5. **Interface design changes outcomes.** SWE-agent's agent-computer interface (windowed viewer, summarized search, lint-gated edits) beat a raw shell by more than 10 points ([SWE-agent](https://arxiv.org/abs/2405.15793)). Anthropic reports state-of-the-art SWE-bench gains from refining tool descriptions alone ([Writing tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents)).
 6. **Availability ≠ adoption.** With a strictly better structural navigation tool available, 58% of trials never called it ([CodeCompass](https://arxiv.org/abs/2602.20048)). Tool descriptions and server instructions must say when to use the tool.
 7. **Nobody combines the pieces.** No surveyed MCP server offers budgeted + batched + symbol-aware + diff-on-reread reading. Diff-on-reread was not found anywhere (§5).
+8. **(measured) Round trips, not bytes, dominate real agent cost.** In our coding eval, read and search results averaged ~1% of a task's input tokens; the rest was context re-sent on each of ~8 model calls. The real-agent savings came from fewer round trips (§10).
 
 ## 2. How agents read files today
 
@@ -42,7 +43,7 @@ Three vendors converged on **2,000-line blind paging**. An 8,161-line file costs
 
 On o200k, the common padded formats add ~50% to the token cost of code. Unpadded `N<TAB>` is the cheapest *unambiguous* format. A single space is marginally cheaper, but it makes indentation ambiguous for exact-match edits.
 
-Tool definitions are paid on every request. speedread's `tools/list` is 4.5 KB (~1,090 o200k tokens) with hand-written schemas, versus 6.3 KB with schemars-derived ones: `"default": null`, nullable unions, and `$defs` that repeat descriptions.
+Tool definitions are paid on every request. speedread's four tool definitions cost ~1,400 o200k tokens with hand-written schemas; derived schemas were ~40% larger because of `"default": null`, nullable unions and `$defs` that repeat descriptions.
 
 ## 4. Techniques with evidence
 
@@ -53,7 +54,8 @@ Tool definitions are paid on every request. speedread's `tools/list` is 4.5 KB (
 | Batching | Claude Code's system prompt instructs batching reads | One `read` call takes many targets sharing one budget |
 | Token budgets, not line counts | aider (binary search to 1,024 tokens), Codex (token budget) | Every tool is budgeted; items degrade largest-first |
 | Head + tail for logs | Codex CLI | Plain-text and streamed files truncate as head + tail with the exact omitted range |
-| Diff on re-read | Implied by AgentDiet ("expired" content) and Manus (filesystem as memory); **no existing implementation found** | `path@etag`: unchanged / appended lines / unified diff |
+| Diff on re-read | Implied by AgentDiet ("expired" content) and Manus (filesystem as memory); **no existing implementation found** | `path@etag`: unchanged / appended lines / diff labelled with changed symbols |
+| Relationship queries | LocAgent (code graph), AutoCodeRover (AST search APIs), Serena (LSP) | `trace`: callers, callees, refs, impls, syntactic and receiver-aware |
 | Actionable errors | Anthropic tool guidance, MCP `isError` guidance | "Did you mean", closest symbols, exact continuation targets |
 | Deterministic output | Manus: KV-cache hit rate is "the single most important metric" | Sorted walks, stable formats, no timings in tool output |
 
@@ -89,7 +91,12 @@ Tool definitions are paid on every request. speedread's `tools/list` is 4.5 KB (
 
 ## 8. Tokenizers
 
-Anthropic states Claude 4.7+ models use a tokenizer producing ~30% more tokens than earlier models for the same text ([Claude docs](https://platform.claude.com/docs/en/about-claude/glossary)). **(measured)** Line-numbered code runs ~3.3 bytes/token on the legacy Claude tokenizer and ~3.9 on o200k. speedread budgets at 2.6 bytes/token (3.6 for Codex clients), keeping estimates at or above real counts. GitHub's `bpe` crate is ~4× faster than tiktoken single-threaded on M1 ([GitHub blog](https://github.blog/ai-and-ml/llms/so-many-tokens-so-little-time-introducing-a-faster-more-flexible-byte-pair-tokenizer/)), but exact o200k counts wouldn't help Claude users, so speedread uses a calibrated estimate.
+Anthropic states Claude 4.7+ models use a tokenizer producing ~30% more tokens than earlier models for the same text ([Claude docs](https://platform.claude.com/docs/en/about-claude/glossary)). **(measured)** Line-numbered code runs ~3.3 bytes/token on the legacy Claude tokenizer and ~3.9 on o200k, which is why a fixed 2.6 bytes/token looked safe. It isn't:
+
+- **Density varies by content.** Adversarial testing found that SVG path data, JSON, base64, hex and numeric tables run 1.2–1.8× over a fixed-ratio estimate. 9.5% of `read` responses exceeded their budget. A content-aware estimator, linear in character classes and fitted to the stricter of o200k and legacy Claude, brought that to 0 of 525 (`evals/budget_eval.py`, `fit_estimator.py`).
+- **Offline tokenizers undercount current Claude models.** Exact counts recovered from real sessions put claude-sonnet-5 at 1.22× the estimate (1.36× for speedread's own output) and 1.35× the legacy tokenizer (`evals/tokenizer_calibration.py`). This agrees with Anthropic's ~30%. Clients that only run Claude get a 1.4× profile; `SPEEDREAD_TOKENIZER` sets it anywhere.
+
+GitHub's `bpe` crate is ~4× faster than tiktoken single-threaded on M1 ([GitHub blog](https://github.blog/ai-and-ml/llms/so-many-tokens-so-little-time-introducing-a-faster-more-flexible-byte-pair-tokenizer/)), but no local tokenizer is exact for current Claude models, so speedread uses a calibrated estimate.
 
 ## 9. Design principles derived
 
@@ -99,6 +106,24 @@ Anthropic states Claude 4.7+ models use a tokenizer producing ~30% more tokens t
 4. **Batch by default.** One call, many targets, one budget.
 5. **Don't resend what the agent has.** Etags, diffs, appended tails.
 6. **Make results pay for the next step.** Search hits carry symbol ranges, and errors carry suggestions.
-7. **Cheap to define.** Three tools and compact schemas, with instructions that say when to use them.
+7. **Cheap to define.** Four tools and compact schemas, with instructions that say when to use them.
 8. **Deterministic output** for prompt-cache stability.
 9. **Engineer for the platform.** On macOS: bulk attribute listing, P-core threading, QoS, iCloud and launchd safety.
+10. **Make the reader the default.** Availability isn't adoption (§10).
+
+## 10. What the evaluations changed
+
+The evals in [`evals/`](../evals/README.md) follow Anthropic's [*Demystifying evals for AI agents*](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents). Reading their transcripts changed the design as much as the literature did:
+
+- **Round trips are the lever.** With the same model and harness, speedread cut input tokens 35% and model time 47% on code questions. The tool results themselves were not smaller: every model call re-sends ~21k tokens of system prompt, tools and conversation, so answering in one call instead of three is what saves. In the coding baseline, read results were ~1% of input.
+- **Adoption is part of the product.** Installed next to the built-in tools, speedread was used in 0 of 10 trials, matching CodeCompass. Configured as the reader, it was used in 27 of 30; the exceptions were a 41-line file read with `cat`. The README therefore leads with configuration that makes it the reader.
+- **Compression claims need information-sufficiency graders.** Comparisons against whole-file reads and 2,000-line paging are structurally favorable to any compressor. The tool suite grades that the needed information is present, and reports a best-case baseline (grep plus an exact window), where the saving is 46%, not 98%.
+- **Budget estimates need adversarial and production calibration** (§8).
+- **The Claude Code caveat is material.** Its `Edit` requires a native `Read` of the file. On our 8 coding tasks, a full default Read of the edited file costs 2k–21k tokens (median 9.8k), paid once and then re-sent on every turn. Savings in Claude Code are exploration savings minus that.
+- **Identifiers that decide what an agent believes it has seen must not alias.** Etags are the full 64-bit xxh3 of the content (a collision among 100k snapshots is ~3 × 10⁻¹⁰), and shorter tags are rejected rather than prefix-matched.
+- **Next:**
+  - an optional LSP/SCIP layer behind `trace`, for exact references, overrides and call hierarchies (today's resolution is syntactic);
+  - tool-description A/B tests for unprompted adoption;
+  - a single high-level `context` tool;
+  - the speedread arms of the coding eval, including whether skeletons ever hide the decisive line.
+

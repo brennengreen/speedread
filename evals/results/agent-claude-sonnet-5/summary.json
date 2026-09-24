@@ -1,0 +1,438 @@
+{
+ "meta": {
+  "model": "claude-sonnet-5",
+  "harness": "GitHub Copilot CLI 1.0.89-1",
+  "tasks": 10,
+  "trials": 3,
+  "date": "2026-09-23"
+ },
+ "conditions": {
+  "baseline": {
+   "trials": 30,
+   "pass@1": 0.9666666666666667,
+   "mean_score": 0.9833333333333333,
+   "pass@3": 1,
+   "pass^3": 0.9,
+   "k": 3,
+   "mean_input_tokens": 75511.46666666666,
+   "mean_output_tokens": 385.8,
+   "mean_cache_read_tokens": 66747.96666666666,
+   "mean_cost_aiu": 3.8976943333333334,
+   "mean_session_ms": 12137.833333333334,
+   "mean_api_ms": 7335.2,
+   "mean_wall_s": 13.876666666666667,
+   "mean_model_calls": 3.3666666666666667,
+   "mean_tool_calls": 2.3666666666666667,
+   "mean_tool_result_tokens": 198.2,
+   "median_input_tokens": 64620.0,
+   "median_cost_aiu": 3.37828,
+   "median_session_ms": 9945.0,
+   "adoption": 0
+  },
+  "speedread": {
+   "trials": 30,
+   "pass@1": 1,
+   "mean_score": 1.0,
+   "pass@3": 1,
+   "pass^3": 1,
+   "k": 3,
+   "mean_input_tokens": 48983.9,
+   "mean_output_tokens": 176.53333333333333,
+   "mean_cache_read_tokens": 40645.666666666664,
+   "mean_cost_aiu": 3.065105,
+   "mean_session_ms": 14462.8,
+   "mean_api_ms": 4033.866666666667,
+   "mean_wall_s": 22.18766666666667,
+   "mean_model_calls": 2.1666666666666665,
+   "mean_tool_calls": 1.2,
+   "mean_tool_result_tokens": 220.23333333333332,
+   "median_input_tokens": 43587.0,
+   "median_cost_aiu": 2.67819,
+   "median_session_ms": 6628.0,
+   "adoption": 0.9
+  },
+  "dropin": {
+   "trials": 10,
+   "pass@1": 0.9,
+   "mean_score": 0.95,
+   "pass^1": 0.9,
+   "k": 1,
+   "mean_input_tokens": 99289.5,
+   "mean_output_tokens": 508.9,
+   "mean_cache_read_tokens": 87583.4,
+   "mean_cost_aiu": 5.170073,
+   "mean_session_ms": 14344.4,
+   "mean_api_ms": 9665.3,
+   "mean_wall_s": 16.318,
+   "mean_model_calls": 4.1,
+   "mean_tool_calls": 3.2,
+   "mean_tool_result_tokens": 208.7,
+   "median_input_tokens": 92908.5,
+   "median_cost_aiu": 4.4351199999999995,
+   "median_session_ms": 13382.5,
+   "adoption": 0
+  }
+ },
+ "tasks": {
+  "flask-shell-context": {
+   "category": "control: small symbol",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 71739.33333333333,
+    "cost_aiu": 3.5636566666666667,
+    "session_ms": 10556.666666666666,
+    "model_calls": 3.3333333333333335,
+    "tool_calls": 2.3333333333333335,
+    "tool_result_tokens": 147.33333333333334,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 50965,
+    "cost_aiu": 2.865196666666667,
+    "session_ms": 7155.333333333333,
+    "model_calls": 2.3333333333333335,
+    "tool_calls": 1.3333333333333333,
+    "tool_result_tokens": 204.33333333333334,
+    "used_speedread": 1
+   },
+   "dropin": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 92614,
+    "cost_aiu": 7.78572,
+    "session_ms": 11856,
+    "model_calls": 4,
+    "tool_calls": 3,
+    "tool_result_tokens": 117,
+    "used_speedread": 0
+   }
+  },
+  "gin-go-version": {
+   "category": "control: tiny file",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 42568.333333333336,
+    "cost_aiu": 2.54631,
+    "session_ms": 5717.333333333333,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 21,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 43219,
+    "cost_aiu": 2.527343333333333,
+    "session_ms": 6532.666666666667,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 21,
+    "used_speedread": 0
+   },
+   "dropin": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 45817,
+    "cost_aiu": 2.61113,
+    "session_ms": 5920,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 21,
+    "used_speedread": 0
+   }
+  },
+  "ripgrep-fixed-strings": {
+   "category": "large file (8,161 lines)",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 64584,
+    "cost_aiu": 3.38313,
+    "session_ms": 10005,
+    "model_calls": 3,
+    "tool_calls": 2,
+    "tool_result_tokens": 142.33333333333334,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 43999.666666666664,
+    "cost_aiu": 2.7779966666666667,
+    "session_ms": 6130,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 395,
+    "used_speedread": 1
+   },
+   "dropin": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 93089,
+    "cost_aiu": 4.19524,
+    "session_ms": 14395,
+    "model_calls": 4,
+    "tool_calls": 3,
+    "tool_result_tokens": 179,
+    "used_speedread": 0
+   }
+  },
+  "ripgrep-walk-run": {
+   "category": "large file (2,740 lines)",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 78985.33333333333,
+    "cost_aiu": 3.7394533333333335,
+    "session_ms": 26969,
+    "model_calls": 3.6666666666666665,
+    "tool_calls": 2.6666666666666665,
+    "tool_result_tokens": 111.33333333333333,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 43424.333333333336,
+    "cost_aiu": 2.616636666666667,
+    "session_ms": 28158.666666666668,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 88,
+    "used_speedread": 1
+   },
+   "dropin": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 116125,
+    "cost_aiu": 4.675,
+    "session_ms": 14934,
+    "model_calls": 5,
+    "tool_calls": 4,
+    "tool_result_tokens": 124,
+    "used_speedread": 0
+   }
+  },
+  "zod-ip-kinds": {
+   "category": "large file (5,138 lines)",
+   "baseline": {
+    "pass": 0.6666666666666666,
+    "score": 0.8333333333333334,
+    "input_tokens": 110831.66666666667,
+    "cost_aiu": 4.900036666666667,
+    "session_ms": 14117,
+    "model_calls": 5,
+    "tool_calls": 4,
+    "tool_result_tokens": 439.6666666666667,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 52281.333333333336,
+    "cost_aiu": 3.0658966666666667,
+    "session_ms": 43706,
+    "model_calls": 2.3333333333333335,
+    "tool_calls": 1.3333333333333333,
+    "tool_result_tokens": 431.3333333333333,
+    "used_speedread": 1
+   },
+   "dropin": {
+    "pass": 0,
+    "score": 0.5,
+    "input_tokens": 119083,
+    "cost_aiu": 5.11124,
+    "session_ms": 13967,
+    "model_calls": 5,
+    "tool_calls": 4,
+    "tool_result_tokens": 580,
+    "used_speedread": 0
+   }
+  },
+  "flask-dispatch-lines": {
+   "category": "large file, several symbols",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 64331.333333333336,
+    "cost_aiu": 3.32043,
+    "session_ms": 9408.666666666666,
+    "model_calls": 3,
+    "tool_calls": 2,
+    "tool_result_tokens": 65.33333333333333,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 43564.666666666664,
+    "cost_aiu": 2.6512700000000002,
+    "session_ms": 6179,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 167,
+    "used_speedread": 1
+   },
+   "dropin": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 116266,
+    "cost_aiu": 4.77426,
+    "session_ms": 14991,
+    "model_calls": 5,
+    "tool_calls": 4,
+    "tool_result_tokens": 222,
+    "used_speedread": 0
+   }
+  },
+  "gin-abort-callers": {
+   "category": "cross-file search",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 43141.333333333336,
+    "cost_aiu": 2.781946666666667,
+    "session_ms": 6443,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 255,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 43656,
+    "cost_aiu": 2.7084966666666666,
+    "session_ms": 6382.333333333333,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 207,
+    "used_speedread": 1
+   },
+   "dropin": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 46381,
+    "cost_aiu": 2.85039,
+    "session_ms": 7303,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 246,
+    "used_speedread": 0
+   }
+  },
+  "vscode-setvalue": {
+   "category": "huge repo (19k files)",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 134957,
+    "cost_aiu": 7.5474966666666665,
+    "session_ms": 16780.333333333332,
+    "model_calls": 5,
+    "tool_calls": 4,
+    "tool_result_tokens": 391.3333333333333,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 81388.66666666667,
+    "cost_aiu": 6.11394,
+    "session_ms": 13514,
+    "model_calls": 3,
+    "tool_calls": 2.3333333333333335,
+    "tool_result_tokens": 335.6666666666667,
+    "used_speedread": 1
+   },
+   "dropin": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 201401,
+    "cost_aiu": 12.12545,
+    "session_ms": 38075,
+    "model_calls": 7,
+    "tool_calls": 7,
+    "tool_result_tokens": 392,
+    "used_speedread": 0
+   }
+  },
+  "alamofire-start-immediately": {
+   "category": "Swift, large file (1,441 lines)",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 57398.333333333336,
+    "cost_aiu": 3.1529533333333335,
+    "session_ms": 8920.666666666666,
+    "model_calls": 2.6666666666666665,
+    "tool_calls": 1.6666666666666667,
+    "tool_result_tokens": 151.66666666666666,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 43812.333333333336,
+    "cost_aiu": 2.6901866666666665,
+    "session_ms": 20647,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 263,
+    "used_speedread": 1
+   },
+   "dropin": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 92728,
+    "cost_aiu": 4.08874,
+    "session_ms": 12798,
+    "model_calls": 4,
+    "tool_calls": 3,
+    "tool_result_tokens": 142,
+    "used_speedread": 0
+   }
+  },
+  "sap-configuration": {
+   "category": "Swift, protocol requirement",
+   "baseline": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 86578,
+    "cost_aiu": 4.04153,
+    "session_ms": 12460.666666666666,
+    "model_calls": 4,
+    "tool_calls": 3,
+    "tool_result_tokens": 257,
+    "used_speedread": 0
+   },
+   "speedread": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 43528,
+    "cost_aiu": 2.6340866666666667,
+    "session_ms": 6223,
+    "model_calls": 2,
+    "tool_calls": 1,
+    "tool_result_tokens": 90,
+    "used_speedread": 1
+   },
+   "dropin": {
+    "pass": 1,
+    "score": 1.0,
+    "input_tokens": 69391,
+    "cost_aiu": 3.48356,
+    "session_ms": 9205,
+    "model_calls": 3,
+    "tool_calls": 2,
+    "tool_result_tokens": 64,
+    "used_speedread": 0
+   }
+  }
+ }
+}

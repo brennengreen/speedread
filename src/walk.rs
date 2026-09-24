@@ -39,7 +39,7 @@ pub const ALWAYS_SKIP: &[&str] = &[
     ".parcel-cache",
 ];
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Entry {
     pub path: PathBuf,
     pub depth: usize,
@@ -48,6 +48,9 @@ pub struct Entry {
     pub mtime_ns: i128,
     /// iCloud placeholder whose content is not on disk.
     pub dataless: bool,
+    /// A symbolic link (only reported with `WalkOpts::include_symlinks`;
+    /// never followed).
+    pub symlink: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -56,6 +59,8 @@ pub struct WalkOpts {
     pub globs: Vec<String>,
     pub max_depth: Option<usize>,
     pub include_dirs: bool,
+    /// Report symlinks as entries (for listings). Walks never follow them.
+    pub include_symlinks: bool,
 }
 
 pub fn build_overrides(root: &Path, globs: &[String]) -> anyhow::Result<Option<Override>> {
@@ -210,6 +215,7 @@ mod fast {
     const ATTR_CMN_ERROR: u32 = 0x2000_0000;
     const VREG: u32 = 1;
     const VDIR: u32 = 2;
+    const VLNK: u32 = 5;
     const SF_FIRMLINK: u32 = 0x0080_0000;
     const SF_DATALESS: u32 = 0x4000_0000;
     const BUF_SIZE: usize = 256 * 1024;
@@ -386,6 +392,7 @@ mod fast {
         stop: AtomicBool,
         max_depth: Option<usize>,
         include_dirs: bool,
+        include_symlinks: bool,
     }
 
     pub(super) fn walk<F>(root: &Path, opts: &WalkOpts, overrides: Option<Override>, f: &F)
@@ -399,6 +406,7 @@ mod fast {
             stop: AtomicBool::new(false),
             max_depth: opts.max_depth,
             include_dirs: opts.include_dirs,
+            include_symlinks: opts.include_symlinks,
         };
         let stack = initial_stack(root, ctx.global.clone());
         let ctx = &ctx;
@@ -453,7 +461,8 @@ mod fast {
                 return;
             }
             let is_dir = e.objtype == VDIR;
-            if !is_dir && e.objtype != VREG {
+            let is_link = e.objtype == VLNK;
+            if !is_dir && e.objtype != VREG && !(is_link && ctx.include_symlinks) {
                 continue;
             }
             let name = OsStr::from_bytes(&e.name);
@@ -479,6 +488,7 @@ mod fast {
                 size: e.size,
                 mtime_ns: e.mtime_ns,
                 dataless: e.flags & SF_DATALESS != 0,
+                symlink: is_link,
             };
             if is_dir {
                 if e.flags & SF_FIRMLINK != 0 {
@@ -534,6 +544,7 @@ mod portable {
         }
         let stop = AtomicBool::new(false);
         let include_dirs = opts.include_dirs;
+        let include_symlinks = opts.include_symlinks;
         b.build_parallel().run(|| {
             let stop = &stop;
             Box::new(move |res| {
@@ -550,7 +561,8 @@ mod portable {
                     return WalkState::Continue;
                 };
                 let is_dir = ft.is_dir();
-                if !is_dir && !ft.is_file() {
+                let is_link = ft.is_symlink();
+                if !(is_dir || ft.is_file() || (is_link && include_symlinks)) {
                     return WalkState::Continue;
                 }
                 if is_dir && !include_dirs {
@@ -567,6 +579,7 @@ mod portable {
                         .map(|m| m.mtime() as i128 * 1_000_000_000 + m.mtime_nsec() as i128)
                         .unwrap_or(0),
                     dataless: false,
+                    symlink: is_link,
                 };
                 if f(entry) {
                     WalkState::Continue
