@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import random
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -153,6 +154,7 @@ def main():
         rr, oo = [r[i] for i in idx], [old[i] for i in idx]
         print(f"{cat:<34} {len(idx):>4} {pct(rr, 50):>8.2f} {pct(rr, 99):>8.2f} {max(rr):>8.2f} {pct(oo, 99):>8.2f} {max(oo):>8.2f}")
     print("\nRust:\n" + "\n".join(f"const W_{f.upper()}: f32 = {c:.4f};" for f, c in zip(FEATURES, coef_s)))
+    shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ import json
 import math
 import os
 import random
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -206,6 +207,7 @@ def main():
             for k, v in pooled.items()))
     if args.json:
         Path(args.json).write_text(json.dumps(report, indent=1))
+    shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":
