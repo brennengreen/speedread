@@ -82,11 +82,11 @@ impl Source {
             bom = true;
         } else if data.len() >= 2 && (data[..2] == [0xFF, 0xFE] || data[..2] == [0xFE, 0xFF]) {
             let le = data[0] == 0xFF;
-            let units = data[2..].chunks_exact(2).map(|c| {
+            let units = data[2..].as_chunks::<2>().0.iter().map(|&c| {
                 if le {
-                    u16::from_le_bytes([c[0], c[1]])
+                    u16::from_le_bytes(c)
                 } else {
-                    u16::from_be_bytes([c[0], c[1]])
+                    u16::from_be_bytes(c)
                 }
             });
             let s: String = char::decode_utf16(units)
