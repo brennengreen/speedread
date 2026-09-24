@@ -13,7 +13,7 @@
 
 It is an MCP server and CLI (Rust, built for macOS on Apple Silicon) with four primitives:
 
-| | | |
+| Primitive | Job | Returns |
 |---|---|---|
 | **map** | locate structure | budgeted repo tree with line counts, importance-weighted; top-level symbols on request |
 | **search** | locate text | ripgrep's engine; every hit grouped under its enclosing function or class, with line range |
