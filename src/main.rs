@@ -16,7 +16,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[command(
     name = "speedread",
     version,
-    about = "The fastest, most token-efficient file reader for AI coding agents (MCP server + CLI), built for macOS."
+    about = "Token-efficient code search and navigation for AI coding agents (MCP server + CLI), built for macOS."
 )]
 struct Cli {
     /// Workspace root (repeatable). Default: $CLAUDE_PROJECT_DIR, else the current directory.

@@ -3,12 +3,14 @@ name = "speedread"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.90"
-description = "The fastest, most token-efficient file reader for AI coding agents (MCP server + CLI), built for macOS."
+description = "Token-efficient code search and navigation for AI coding agents: a symbol-aware, token-budgeted MCP server and CLI. Built for macOS on Apple Silicon."
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/brennengreen/speedread"
-keywords = ["mcp", "agents", "tree-sitter", "llm", "code-navigation"]
+keywords = ["mcp", "ai-agents", "code-search", "code-navigation", "tree-sitter"]
 categories = ["command-line-utilities", "development-tools"]
+# Eval transcripts, demo and image assets stay on GitHub; the crate ships only what builds and tests.
+include = ["/src", "/tests", "/Cargo.toml", "/Cargo.lock", "/README.md", "/LICENSE", "/CHANGELOG.md"]
 
 [dependencies]
 anyhow = "1"

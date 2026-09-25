@@ -1,4 +1,4 @@
-//! speedread: the fastest, most token-efficient file reader for AI coding
+//! speedread: token-efficient code search and navigation for AI coding
 //! agents — an MCP server and CLI, tuned for macOS on Apple Silicon.
 
 pub mod diff;
