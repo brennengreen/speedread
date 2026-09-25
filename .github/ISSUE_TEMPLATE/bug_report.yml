@@ -1,0 +1,57 @@
+name: Bug report
+description: Wrong output, a crash or hang, or a setup that doesn't work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If this is a security problem, such as reading outside the workspace, please [report it privately](https://github.com/brennengreen/speedread/security/advisories/new) instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran (or what the agent called), what you expected, and what you got.
+      placeholder: |
+        speedread read 'src/app.ts#Server.start'
+        Expected: the method's source. Got: ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: A public repository and commit, or a small file that shows the problem.
+  - type: input
+    id: version
+    attributes:
+      label: speedread version
+      description: "`speedread --version`, and the commit if you built from source."
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS, Apple Silicon
+        - macOS, Intel
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: Client and model, if it happened in an agent
+      placeholder: "e.g. Claude Code 2.1, GitHub Copilot CLI 1.0.89 with claude-sonnet-5, or CLI only"
+  - type: textarea
+    id: config
+    attributes:
+      label: MCP configuration and environment
+      description: The speedread entry from your client's MCP config, and any SPEEDREAD_* variables.
+      render: text
+  - type: textarea
+    id: output
+    attributes:
+      label: Output or logs
+      render: text

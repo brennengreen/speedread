@@ -1,0 +1,54 @@
+name: Eval result or reproduction
+description: Results from running speedread's evals, or your own comparison, in another harness, model or repository. Favorable or not.
+labels: [evals]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Results that show no effect, or a negative one, are as useful as wins. The protocol is in [evals/README.md](https://github.com/brennengreen/speedread/blob/main/evals/README.md).
+  - type: input
+    id: harness
+    attributes:
+      label: Harness and version
+      placeholder: e.g. Claude Code 2.1, Codex CLI, Gemini CLI, GitHub Copilot CLI 1.0.89
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: e.g. claude-sonnet-5
+    validations:
+      required: true
+  - type: dropdown
+    id: suite
+    attributes:
+      label: What you ran
+      multiple: true
+      options:
+        - Suite 3, code questions
+        - Suite 3b, relationship questions
+        - Suite 4, bug fixes
+        - Suite 1 or 2, tool level or budgets
+        - My own tasks
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Conditions and setup
+      description: How speedread was configured (as the reader, merely available, which instructions), which built-in tools were available, the speedread version, and anything that differs from the published protocol.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results
+      description: Trials per condition, pass rates, input tokens, model calls and time. Paste the summary table if the scripts produced one.
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Raw data
+      description: A link to the transcripts or trial logs, if you can share them. A gist or a fork is fine.

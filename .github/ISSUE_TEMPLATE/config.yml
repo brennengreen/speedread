@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/brennengreen/speedread/discussions
+    about: Ask how to set speedread up for your agent, or discuss an idea before opening an issue.
+  - name: Security vulnerability
+    url: https://github.com/brennengreen/speedread/security/advisories/new
+    about: Please report these privately instead of in a public issue.

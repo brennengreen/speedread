@@ -1,0 +1,43 @@
+name: Feature request
+description: A new capability, language, client integration or other improvement
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - read, skeletons or budgets
+        - search
+        - trace (callers, callees, references, implementations)
+        - map
+        - Language support
+        - Client or agent integration
+        - Evals
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is the agent (or you) trying to do, and where does it cost extra calls, extra tokens or wrong answers today? A transcript excerpt helps.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should speedread return or do instead? Alternatives you considered are welcome.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: How would we know it helps?
+      description: Optional. A task or measurement that would show it, such as fewer model calls on a named question in a public repository.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this
