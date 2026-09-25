@@ -159,8 +159,13 @@ Reading transcripts, not just scores, found three problems that scores alone hid
 
 ## Reproduce
 
+Before you start:
+
+- **Benchmark repositories.** The suites expect flask, gin, ripgrep, zod, vscode, Alamofire and swift-argument-parser cloned side by side in one directory (`<bench>`). The commits the tasks were written against are not yet recorded in this repository. Graders check version-specific facts such as line numbers, so on other checkouts some tasks can fail in every condition. For the bug-fix suite, `coding_eval.py --verify` checks each task against your checkouts.
+- **Agent suites** need [GitHub Copilot CLI](https://github.com/github/copilot-cli) and `speedread` on your `PATH` (`evals/speedread-mcp.json` runs `speedread mcp`). The bug-fix suite also needs Go for gin's tests, and for flask a virtual environment with its test dependencies at `<venvs>/flask` (each task's `venv` field names the directory).
+- **Suite 2** needs a Python environment with `tiktoken`, plus, for the legacy Claude tokenizer, a Node script that counts tokens with `@anthropic-ai/tokenizer` (`--claude-counter`).
+
 ```bash
-# repos at the pinned commits (see RESULTS.md), tokenizer venv with tiktoken
 python3 evals/tool_eval.py  <bench> --speedread target/release/speedread --rg rg --json evals/results/tool_eval.json
 python3 evals/budget_eval.py <bench> --speedread target/release/speedread --claude-counter tok/claude_count.js
 python3 evals/agent_eval.py  --bench <bench> --trials 3 --conditions baseline,speedread --dropin-trials 1
