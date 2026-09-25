@@ -1,0 +1,32 @@
+# Publishes the self-contained eval report (demo/index.html) to GitHub Pages.
+# One-time setup: Settings → Pages → Build and deployment → Source: GitHub Actions,
+# then run this workflow from the Actions tab. Rerun it after `python3 demo/build.py`.
+name: Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: mkdir _site && cp demo/index.html _site/index.html
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,27 @@
+# Linux is implemented (the portable walker; macOS-only code is cfg-gated) and
+# compiles and links for x86_64, but its tests have not yet run on Linux and it
+# isn't in CI. Run this from the Actions tab to check it.
+# Once it passes, add push/pull_request triggers (or fold the job into ci.yml)
+# and update README.md#platform-support.
+name: Linux (experimental)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: test (Ubuntu 24.04, x86_64)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-targets --locked
+      - run: cargo build --release --locked
+      - name: Smoke test the CLI (tests/mcp.rs covers the MCP protocol)
+        run: |
+          bin=target/release/speedread
+          $bin --version
+          $bin --root . read 'src/lib.rs'
+          $bin --root . search 'fn worker_threads'
+          $bin --root . trace '#worker_threads'
