@@ -25,6 +25,16 @@ import statistics as st
 from datetime import datetime
 from pathlib import Path
 
+PAGE_URL = "https://brennengreen.github.io/speedread/"
+PAGE_DESCRIPTION = ("speedread is an MCP server and CLI that gives AI coding agents the part of a codebase a question "
+                    "needs, within a token budget. Eval report: real-agent A/B tests with transcripts and raw data.")
+PAGE_JSONLD = json.dumps({
+    "@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "speedread",
+    "description": PAGE_DESCRIPTION, "url": PAGE_URL,
+    "codeRepository": "https://github.com/brennengreen/speedread", "programmingLanguage": "Rust",
+    "license": "https://opensource.org/licenses/MIT", "author": {"@type": "Person", "name": "Brennen Green"},
+}).replace("</", "<\\/")
+
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / "evals" / "results"
 ASSETS = ROOT / "docs" / "assets"
@@ -656,7 +666,14 @@ def html_page(race, race_svg_text, charts, summary, m, tot, pooled, calib, codin
                         for v, l, n in hero)
     cites = "".join(f'<li><a href="{esc(u)}">{esc(t)}</a></li>' for t, u in CITATIONS)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>speedread: reading code for agents</title>
+<title>speedread: token-efficient code reading for AI coding agents</title>
+<meta name="description" content="{esc(PAGE_DESCRIPTION)}">
+<link rel="canonical" href="{PAGE_URL}">
+<meta property="og:type" content="website"><meta property="og:url" content="{PAGE_URL}">
+<meta property="og:title" content="speedread: token-efficient code reading for AI coding agents">
+<meta property="og:description" content="{esc(PAGE_DESCRIPTION)}">
+<meta property="og:image" content="{PAGE_URL}og.jpg"><meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{PAGE_JSONLD}</script>
 <style>
 *{{box-sizing:border-box}}body{{margin:0;background:{BG};color:{TEXT};font:16px/1.6 {SANS}}}
 main{{max-width:1320px;margin:0 auto;padding:40px 24px 80px}}a{{color:{B}}}
@@ -678,7 +695,8 @@ code{{font-family:{MONO};font-size:.92em}}.cols{{display:grid;grid-template-colu
 @media(max-width:800px){{.pair{{grid-template-columns:1fr}}h1{{font-size:36px}}header{{flex-direction:column;align-items:flex-start}}}}
 </style></head><body><main>
 <header>{f'<img src="{logo}" alt="speedread logo">' if logo else ''}<div><h1><span class="grad">speedread</span><br>Read is the wrong abstraction for coding agents.</h1>
-<p class="lead">Agent file reading should be adaptive, stateful, symbol-aware and token-budgeted instead of byte-oriented. ripgrep returns matches; speedread returns the minimum useful unit of code.</p></div></header>
+<p class="lead">Agent file reading should be adaptive, stateful, symbol-aware and token-budgeted instead of byte-oriented. ripgrep returns matches; speedread returns the minimum useful unit of code.</p>
+<p class="muted">An open-source (MIT) MCP server and CLI · <a href="https://github.com/brennengreen/speedread">github.com/brennengreen/speedread</a> · <code>brew install brennengreen/tap/speedread</code></p></div></header>
 <div class="stats">{hero_html}</div>
 <h2>Watch one real task</h2>
 <p class="muted">Both sides are recorded eval transcripts, replayed at recorded speed. The built-in grep answers with a file name, so the agent has to ask again. speedread's search answers with the matching lines under their enclosing declaration, with line ranges.</p>

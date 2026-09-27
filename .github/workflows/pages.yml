@@ -1,10 +1,17 @@
-# Publishes the self-contained eval report (demo/index.html) to GitHub Pages.
-# One-time setup: Settings → Pages → Build and deployment → Source: GitHub Actions,
-# then run this workflow from the Actions tab. Rerun it after `python3 demo/build.py`.
+# Publishes the self-contained eval report (demo/index.html) to GitHub Pages at
+# https://brennengreen.github.io/speedread/, whenever `python3 demo/build.py`
+# output lands on main (or by hand from the Actions tab).
 name: Pages
 
 on:
+  push:
+    branches: [main]
+    paths: [demo/index.html, docs/assets/social-preview.jpg, .github/workflows/pages.yml]
   workflow_dispatch:
+
+env:
+  # IndexNow (Bing, Yandex and others): the key is public by design; its file is served next to the page.
+  INDEXNOW_KEY: 8c0025666cbf4cb0185eb736632898a4
 
 permissions:
   contents: read
@@ -23,10 +30,21 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
-      - run: mkdir _site && cp demo/index.html _site/index.html
+      - name: Assemble the site
+        run: |
+          mkdir _site
+          cp demo/index.html _site/index.html
+          cp docs/assets/social-preview.jpg _site/og.jpg
+          echo "$INDEXNOW_KEY" > "_site/$INDEXNOW_KEY.txt"
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v5
+      - name: Tell search engines the page changed (IndexNow)
+        continue-on-error: true
+        run: |
+          base=https://brennengreen.github.io/speedread
+          curl -fsS -X POST https://api.indexnow.org/indexnow -H 'Content-Type: application/json; charset=utf-8' \
+            -d "{\"host\":\"brennengreen.github.io\",\"key\":\"$INDEXNOW_KEY\",\"keyLocation\":\"$base/$INDEXNOW_KEY.txt\",\"urlList\":[\"$base/\"]}"
