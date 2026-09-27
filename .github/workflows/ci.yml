@@ -39,6 +39,17 @@ jobs:
           cd target/release
           tar czf speedread-aarch64-apple-darwin.tar.gz speedread
           shasum -a 256 speedread-aarch64-apple-darwin.tar.gz > sha256.txt
+      # One-click install in Claude Desktop, and the package the MCP Registry lists.
+      - name: MCP bundle (.mcpb)
+        run: |
+          d="$RUNNER_TEMP/mcpb"
+          mkdir -p "$d/server"
+          cp target/release/speedread "$d/server/speedread"
+          sips -Z 512 docs/assets/logo-1024.png --out "$d/icon.png" >/dev/null
+          jq --arg v "${GITHUB_REF_NAME#v}" '.version = $v' packaging/mcpb/manifest.json > "$d/manifest.json"
+          npx -y @anthropic-ai/mcpb@2.1.2 pack "$d" target/release/speedread-aarch64-apple-darwin.mcpb
+          cd target/release
+          shasum -a 256 speedread-aarch64-apple-darwin.mcpb >> sha256.txt
       # docs/releases/<tag>.md, if present: its first line ("# title") names the
       # release and the rest is the body. Otherwise GitHub generates notes.
       - name: Release notes
@@ -57,4 +68,16 @@ jobs:
           generate_release_notes: ${{ steps.notes.outputs.path == '' }}
           files: |
             target/release/speedread-aarch64-apple-darwin.tar.gz
+            target/release/speedread-aarch64-apple-darwin.mcpb
             target/release/sha256.txt
+
+  mcp-registry:
+    name: MCP Registry
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: release
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mcp-registry.yml
+    with:
+      tag: ${{ github.ref_name }}

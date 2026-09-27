@@ -1,0 +1,71 @@
+{
+  "manifest_version": "0.3",
+  "name": "speedread",
+  "display_name": "speedread",
+  "version": "0.0.0",
+  "description": "Token-efficient code reading for AI coding agents: symbol-aware, budgeted, diff-aware reads.",
+  "long_description": "speedread gives the agent the part of a codebase a question needs, within a token budget: the function around each search hit, a large file's skeleton, a symbol's callers and implementations, or only what changed since the last read. Read-only by construction: paths must lie inside the folder you choose. Built for macOS on Apple Silicon.",
+  "author": {
+    "name": "Brennen Green",
+    "url": "https://github.com/brennengreen"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brennengreen/speedread"
+  },
+  "homepage": "https://github.com/brennengreen/speedread",
+  "documentation": "https://github.com/brennengreen/speedread#readme",
+  "support": "https://github.com/brennengreen/speedread/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/speedread",
+    "mcp_config": {
+      "command": "${__dirname}/server/speedread",
+      "args": [
+        "mcp",
+        "--root",
+        "${user_config.workspace}"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "map",
+      "description": "Budgeted repository overview, with each file's top-level definitions on request."
+    },
+    {
+      "name": "read",
+      "description": "Files, ranges, symbols, sections and globs in one call under one token budget; only what changed on a re-read."
+    },
+    {
+      "name": "search",
+      "description": "Text search with each hit grouped under its enclosing function or class."
+    },
+    {
+      "name": "trace",
+      "description": "Callers, callees, references and implementations of a symbol, up to three levels deep."
+    }
+  ],
+  "keywords": [
+    "code search",
+    "code navigation",
+    "tree-sitter",
+    "token budget",
+    "coding agents"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": [
+      "darwin"
+    ]
+  },
+  "user_config": {
+    "workspace": {
+      "type": "directory",
+      "title": "Code folder",
+      "description": "The folder speedread may read: one project, or a parent folder such as ~/code. Reads outside it are refused.",
+      "required": true
+    }
+  }
+}

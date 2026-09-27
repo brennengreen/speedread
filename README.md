@@ -277,6 +277,8 @@ curl -fsSL https://github.com/brennengreen/speedread/releases/latest/download/sp
 
 The binary is not notarized. `curl` doesn't set macOS's quarantine flag; if you download it with a browser instead, clear it with `xattr -d com.apple.quarantine speedread`.
 
+**Claude Desktop, one click:** download [`speedread-aarch64-apple-darwin.mcpb`](https://github.com/brennengreen/speedread/releases/latest/download/speedread-aarch64-apple-darwin.mcpb) and open it. Claude Desktop asks which folder speedread may read; reads outside it are refused.
+
 **Not Homebrew (yet):** `brew install speedread` installs a different program, an RSVP speed-reading tool from homebrew-core that also installs a `speedread` binary.
 
 New versions are published as [releases](https://github.com/brennengreen/speedread/releases) with notes; to be notified, use **Watch → Custom → Releases**.
@@ -332,7 +334,7 @@ speedread serves MCP over stdio (`speedread mcp`). Workspace roots come from `--
 | Codex CLI (`~/.codex/config.toml`) | `[mcp_servers.speedread]` · `command = "speedread"` · `args = ["mcp"]` |
 | Gemini CLI (`~/.gemini/settings.json`) | `{ "mcpServers": { "speedread": { "command": "speedread", "args": ["mcp"] } } }` |
 | Zed (`settings.json`) | `{ "context_servers": { "speedread": { "source": "custom", "command": "speedread", "args": ["mcp"] } } }` |
-| Claude Desktop | absolute binary path, plus `"args": ["mcp", "--root", "/path/to/project"]` |
+| Claude Desktop | the [`.mcpb` bundle](#install) (one click), or the absolute binary path plus `"args": ["mcp", "--root", "/path/to/project"]` |
 
 GUI apps may not inherit your shell's `PATH`; use the absolute path from `which speedread`.
 

@@ -1,0 +1,48 @@
+name: MCP Registry
+
+# Publishes a release's .mcpb bundle to the MCP Registry as
+# io.github.brennengreen/speedread. CI calls this after each release; run it by
+# hand (Actions → MCP Registry → Run workflow) to republish an existing tag.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, for example v0.1.0
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC login: the registry grants the io.github.brennengreen namespace
+    steps:
+      - name: Write server.json for the release's bundle
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          asset=speedread-aarch64-apple-darwin.mcpb
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
+          curl -fsSL -o "$asset" "$url"
+          jq -n --arg v "${TAG#v}" --arg url "$url" --arg sha "$(sha256sum "$asset" | cut -d' ' -f1)" '{
+            "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+            name: "io.github.brennengreen/speedread",
+            title: "speedread",
+            description: "Token-efficient code reading for coding agents: symbol-aware, budgeted, diff-aware reads.",
+            version: $v,
+            websiteUrl: "https://github.com/brennengreen/speedread",
+            repository: { url: "https://github.com/brennengreen/speedread", source: "github" },
+            icons: [{ src: "https://raw.githubusercontent.com/brennengreen/speedread/main/docs/assets/logo-256.png", mimeType: "image/png", sizes: ["256x256"] }],
+            packages: [{ registryType: "mcpb", identifier: $url, version: $v, fileSha256: $sha, transport: { type: "stdio" } }]
+          }' > server.json
+          cat server.json
+      - name: Install mcp-publisher
+        run: curl -fsSL https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz | tar xz mcp-publisher
+      - run: ./mcp-publisher login github-oidc
+      - run: ./mcp-publisher publish

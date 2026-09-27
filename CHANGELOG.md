@@ -2,7 +2,7 @@
 
 Notable changes by release. Before 1.0, minor versions may change tool arguments and output formats.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-09-26)
 
 First public release. Release notes: [docs/releases/v0.1.0.md](docs/releases/v0.1.0.md).
 
@@ -14,3 +14,4 @@ First public release. Release notes: [docs/releases/v0.1.0.md](docs/releases/v0.
 - Content-aware token estimator, and tokenizer profiles (`SPEEDREAD_TOKENIZER=claude|openai|legacy`).
 - macOS: `getattrlistbulk` walker, performance-core thread pools, iCloud dataless files fail fast.
 - Evals: tool scenarios, budget contract, tokenizer calibration, and real-agent code questions, relationship questions and bug fixes, with raw data.
+- Distribution: a prebuilt macOS arm64 binary, a Claude Desktop bundle (`.mcpb`), and publishing to the MCP Registry as `io.github.brennengreen/speedread`.
