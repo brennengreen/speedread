@@ -1,11 +1,12 @@
-# Linux is implemented (the portable walker; macOS-only code is cfg-gated) and
-# compiles and links for x86_64, but its tests have not yet run on Linux and it
-# isn't in CI. Run this from the Actions tab to check it.
-# Once it passes, add push/pull_request triggers (or fold the job into ci.yml)
-# and update README.md#platform-support.
-name: Linux (experimental)
+# Linux uses the portable walker; macOS-only code is cfg-gated. The tests first
+# passed here on 2026-09-26, so this runs on every push and pull request.
+# Clippy isn't enforced on Linux yet: see ROADMAP.md (macOS-only walker helpers).
+name: Linux
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 jobs:

@@ -1,4 +1,4 @@
-# Homebrew formula (for a tap such as brennengreen/homebrew-tap).
+# Homebrew formula, published in https://github.com/brennengreen/homebrew-tap.
 # Builds from source, so no notarization is needed.
 #
 # Name collision: homebrew-core already has an unrelated `speedread` formula
@@ -9,7 +9,7 @@ class Speedread < Formula
   desc "Token-efficient code search and navigation for AI coding agents (MCP)"
   homepage "https://github.com/brennengreen/speedread"
   url "https://github.com/brennengreen/speedread/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "REPLACE_WITH_RELEASE_TARBALL_SHA256"
+  sha256 "63028a98e65c1ddb5f95f4593751f102ef5e79931055b4bef99ac1ca269ba386"
   license "MIT"
   head "https://github.com/brennengreen/speedread.git", branch: "main"
 

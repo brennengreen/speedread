@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use speedread or its evals in your work, please cite it as below."
+title: "speedread: token-efficient code search and navigation for AI coding agents"
+type: software
+authors:
+  - family-names: Green
+    given-names: Brennen
+repository-code: "https://github.com/brennengreen/speedread"
+url: "https://github.com/brennengreen/speedread"
+license: MIT
+version: 0.1.0
+date-released: "2026-09-26"
+abstract: >-
+  speedread is an MCP server and CLI that gives AI coding agents the part of a
+  codebase a question needs, within a token budget: the function around each
+  search hit, a large file's skeleton, a symbol's callers and implementations,
+  or only what changed since the last read. In its evals (one model, one
+  harness), it cut input tokens by 35% on code questions and by 57% on
+  relationship questions; every trial and transcript is in the repository.
+keywords:
+  - model context protocol
+  - coding agents
+  - code search
+  - code navigation
+  - tree-sitter
+  - context engineering

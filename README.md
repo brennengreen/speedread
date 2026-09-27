@@ -48,9 +48,10 @@ pass^3 is the share of tasks whose three trials all passed. Intervals are 95% bo
 
 ```sh
 cargo install --locked --git https://github.com/brennengreen/speedread
+# or: brew install brennengreen/tap/speedread
 ```
 
-Prebuilt binaries, other platforms, and why not `brew install speedread`: [Install](#install).
+Prebuilt binaries, a one-click Claude Desktop bundle, other platforms, and why the tap name: [Install](#install).
 
 **2. Add it to your agent as the reader, not as one more tool.** Installed alongside the built-in tools with no guidance, it went unused and made runs more expensive ([above](#measured-not-hand-waved)).
 
@@ -258,6 +259,10 @@ Speed is not the headline; returning less is. It still matters that doing *more*
 
 Search runs at parity with ripgrep when ripgrep is told to use only the performance cores. The 2.9× gap to ripgrep's default comes from threads spilling onto efficiency cores on this chip: kernel time grows 6.6×. speedread sizes its pool from `hw.perflevel0.logicalcpu`.
 
+## How it compares
+
+Other MCP servers cover parts of this. The [official filesystem server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem) batches whole-file reads and limits them by line count. [Serena](https://github.com/oraios/serena) is symbol-aware through language servers. [ast-grep MCP](https://github.com/ast-grep/ast-grep-mcp) does structural search, [claude-context](https://github.com/zilliztech/claude-context) searches by embeddings, and [repomix](https://github.com/yamadashy/repomix) packs a whole repository into one file. speedread combines batched, symbol-aware reads under one token budget with diff-only re-reads and relationship queries, and needs no embeddings or language server. The feature table, with sources, is in [docs/RESEARCH.md](docs/RESEARCH.md#5-existing-mcp-servers).
+
 ## Install
 
 **From source** (Rust 1.90+, via `brew install rust` or [rustup](https://rustup.rs); the tree-sitter grammars also need a C compiler, which Xcode's Command Line Tools provide):
@@ -279,7 +284,9 @@ The binary is not notarized. `curl` doesn't set macOS's quarantine flag; if you 
 
 **Claude Desktop, one click:** download [`speedread-aarch64-apple-darwin.mcpb`](https://github.com/brennengreen/speedread/releases/latest/download/speedread-aarch64-apple-darwin.mcpb) and open it. Claude Desktop asks which folder speedread may read; reads outside it are refused.
 
-**Not Homebrew (yet):** `brew install speedread` installs a different program, an RSVP speed-reading tool from homebrew-core that also installs a `speedread` binary.
+**Homebrew:** `brew install brennengreen/tap/speedread` builds from source. Use the full name: plain `brew install speedread` installs a different program, an RSVP speed-reading tool from homebrew-core that also installs a `speedread` binary.
+
+**MCP Registry:** listed as `io.github.brennengreen/speedread` (`mcp-name: io.github.brennengreen/speedread`), so registry-aware clients can find and install the bundle. Agents installing speedread for you can follow [llms-install.md](llms-install.md).
 
 New versions are published as [releases](https://github.com/brennengreen/speedread/releases) with notes; to be notified, use **Watch → Custom → Releases**.
 
@@ -289,7 +296,7 @@ New versions are published as [releases](https://github.com/brennengreen/speedre
 |---|---|
 | macOS on Apple Silicon | Built, tuned and tested: CI runs the test suite on macOS 15 with both directory walkers. |
 | macOS on Intel | The same code. The test suite passes as an x86_64 build under Rosetta 2; not yet tested on Intel hardware or in CI. |
-| Linux | Compiles and links for x86_64, checked by cross-compiling, but the tests haven't run on Linux yet and it isn't in CI. macOS-specific code is compiled out and the portable walker (the [`ignore`](https://crates.io/crates/ignore) crate) is used. The [Linux (experimental)](.github/workflows/linux.yml) workflow runs the tests on demand; reports are welcome. |
+| Linux | The test suite passes on Ubuntu 24.04 (x86_64), and [CI](.github/workflows/linux.yml) runs it on every push. macOS-specific code is compiled out and the portable walker (the [`ignore`](https://crates.io/crates/ignore) crate) is used. Not tuned or benchmarked there, and no prebuilt binary yet: install with `cargo`. Reports from other distributions and arm64 are welcome. |
 | Other Unix | Untested; the Linux code path applies. |
 | Windows | Not supported: the code uses Unix-only APIs. WSL2 has Linux's status. |
 
@@ -349,7 +356,7 @@ Environment variables:
 - **Definition overhead and adoption.** The server adds ~2.2k tokens to every model call (net +0.9k when it replaces view/grep/glob), whether or not it's used. Leaner descriptions, A/B tests of tool names and descriptions for unprompted adoption, and a single high-level `context` tool that picks map, search, trace or read itself are next.
 - **Sample sizes.** The bug-fix and relationship suites have 16 and 8 trials per arm, and their bug-fix token and time differences are within noise. More tasks, more trials and other harnesses (Claude Code, Codex) are next.
 - Budgets are estimates, not tokenizer counts. They are calibrated to offline tokenizers, plus the Claude profile from production counts.
-- Built and tuned for macOS on Apple Silicon. Linux compiles but its tests haven't run, and neither Linux nor Intel macOS is in CI. Windows is not supported. See [Platform support](#platform-support).
+- Built and tuned for macOS on Apple Silicon. Linux passes the test suite in CI but isn't tuned; Intel macOS isn't in CI. Windows is not supported. See [Platform support](#platform-support).
 
 Each of these is written up with its scope, the skills it needs and a suggested first step in [ROADMAP.md](ROADMAP.md).
 
@@ -376,7 +383,7 @@ The research behind every design choice, with sources, is in [docs/RESEARCH.md](
 
 Issues, eval results and pull requests are welcome, including results where speedread doesn't help. Setup questions and ideas go in [Discussions](https://github.com/brennengreen/speedread/discussions). Useful places to start:
 
-- **Linux:** run the [experimental workflow](.github/workflows/linux.yml) or `cargo test` on a Linux machine, and report what breaks. A small first fix: [five macOS-only helpers](ROADMAP.md#linux-gate-macos-only-walker-helpers) make clippy fail there.
+- **Linux:** the tests pass in CI; real-world reports are welcome. A small first fix: [five macOS-only helpers](ROADMAP.md#linux-gate-macos-only-walker-helpers) make clippy fail there.
 - **Other harnesses and models:** Claude Code, Codex, Cursor and Gemini CLI are configured above but not yet measured. [Share an eval result](https://github.com/brennengreen/speedread/issues/new?template=eval_report.yml).
 - **Languages and clients:** an outline fixture for a language that parses poorly, or a verified setup for a client.
 
