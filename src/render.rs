@@ -157,8 +157,8 @@ fn line_kind(lang: Option<LangId>, line: &[u8]) -> LineKind {
         Some(LangId::Python | LangId::Ruby | LangId::Bash | LangId::Yaml | LangId::Toml)
     );
     let starts = |p: &[u8]| t.starts_with(p);
-    if starts(b"//") || starts(b"/*") || starts(b"*") || starts(b"--") && lang == Some(LangId::Lua)
-    {
+    let lua = matches!(lang, Some(LangId::Lua | LangId::Luau));
+    if starts(b"//") || starts(b"/*") || starts(b"*") || starts(b"--") && lua {
         return LineKind::Comment;
     }
     if hash_comments && starts(b"#") && !starts(b"#!") {
@@ -175,6 +175,10 @@ fn line_kind(lang: Option<LangId>, line: &[u8]) -> LineKind {
         || starts(b"require_relative ")
         || starts(b"using ")
         || (starts(b"const ") && memchr::memmem::find(t, b"require(").is_some())
+        || (lua
+            && starts(b"local ")
+            && (memchr::memmem::find(t, b"require(").is_some()
+                || memchr::memmem::find(t, b":GetService(").is_some()))
     {
         return LineKind::Import;
     }

@@ -1,0 +1,8 @@
+Type State 5-9 | export type State
+Type Callback 11-11 | type Callback<T> = (T) -> ()
+Function Account.new 16-22 ⋯18-21 | function Account.new(owner: string): Account
+Method Account.deposit 24-29 ⋯26-28 | function Account:deposit(amount: number): ()
+Function Account.reset 31-35 ⋯32-34 | Account.reset = function(self: Account)
+Function helper 37-41 ⋯38-40 | local function helper<T>(x: T): T
+Function scale 43-47 ⋯44-46 | local scale = function(n: number): number
+Function handlers.onJoin 50-54 ⋯51-53 | onJoin = function(player: Player)

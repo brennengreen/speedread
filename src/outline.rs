@@ -93,6 +93,8 @@ pub struct Outline {
     /// Extra line ranges skeletons may elide (e.g. long Python class and
     /// module docstrings), inclusive.
     pub elide: Vec<(u32, u32)>,
+    /// Parsed as Luau, including `.lua` files that only Luau can parse.
+    pub luau: bool,
 }
 
 impl Outline {
@@ -141,9 +143,17 @@ impl Outline {
     }
 
     /// Find symbols matching a (possibly qualified) name such as `parse`,
-    /// `Parser.parse`, `Parser::parse` or `tool.poetry`.
+    /// `Parser.parse`, `Parser::parse`, `Parser:parse` (Lua) or `tool.poetry`.
     pub fn find(&self, query: &str) -> Vec<usize> {
-        let q: Vec<&str> = split_segments(query.trim().trim_end_matches("()"));
+        let query = query.trim().trim_end_matches("()");
+        let hits = self.find_segments(&split_segments(query));
+        if hits.is_empty() && lua_method_query(query) {
+            return self.find_segments(&split_segments(&query.replace(':', ".")));
+        }
+        hits
+    }
+
+    fn find_segments(&self, q: &[&str]) -> Vec<usize> {
         if q.is_empty() {
             return Vec::new();
         }
@@ -163,7 +173,7 @@ impl Outline {
                     }
                     let tail = &chain[chain.len() - q.len()..];
                     tail.iter()
-                        .zip(&q)
+                        .zip(q)
                         .all(|(a, b)| eq(a, b) || eq(strip_selector(a), b))
                 })
                 .collect();
@@ -213,6 +223,12 @@ pub fn split_segments(s: &str) -> Vec<&str> {
         .flat_map(|p| p.split(['.', '#', '/']))
         .filter(|p| !p.is_empty())
         .collect()
+}
+
+/// `Account:deposit` (a Lua method), as opposed to `a::b` paths and
+/// Objective-C selectors such as `initWithFrame:style:`.
+pub fn lua_method_query(q: &str) -> bool {
+    q.contains(':') && !q.contains("::") && !q.ends_with(':')
 }
 
 /// `initWithFrame:style:` → `initWithFrame` (Objective-C selectors).
@@ -337,21 +353,139 @@ fn sanitize_apple_macros(src: &[u8]) -> Option<Vec<u8>> {
     out
 }
 
-/// Parse `src` and extract its outline. Returns `None` if the language has no
-/// grammar or parsing failed.
-/// Parse `src` into a syntax tree (code languages only). Byte offsets match
-/// `src` exactly (Apple SDK macros are blanked in place, not removed).
-pub fn parse_tree(lang: LangId, src: &[u8]) -> Option<tree_sitter::Tree> {
-    if lang.is_structured_data() {
+/// Luau function attributes (`@native`, `@checked`, `@[deprecated]`), which
+/// the tree-sitter grammar predates. Attributes alone on their line become a
+/// comment, so the definition's range still covers them like a decorator;
+/// attributes followed by code are blanked. Offsets and newlines are kept.
+fn sanitize_luau_attributes(src: &[u8]) -> Option<Vec<u8>> {
+    memchr::memchr(b'@', src)?;
+    let n = src.len();
+    // `[[`, `[=[`, …: the level (number of `=`) of a long bracket at `i`.
+    let long_open = |i: usize| -> Option<usize> {
+        if src.get(i) != Some(&b'[') {
+            return None;
+        }
+        let eq = src[i + 1..].iter().take_while(|&&b| b == b'=').count();
+        (src.get(i + 1 + eq) == Some(&b'[')).then_some(eq)
+    };
+    let long_close = |mut j: usize, level: usize| -> usize {
+        while j < n {
+            if src[j] == b']' {
+                let eq = src[j + 1..].iter().take_while(|&&b| b == b'=').count();
+                if eq == level && src.get(j + 1 + eq) == Some(&b']') {
+                    return j + eq + 2;
+                }
+            }
+            j += 1;
+        }
+        n
+    };
+    let mut out: Option<Vec<u8>> = None;
+    let mut i = 0;
+    while i < n {
+        match src[i] {
+            b'-' if src.get(i + 1) == Some(&b'-') => {
+                i = match long_open(i + 2) {
+                    Some(level) => long_close(i + 4 + level, level),
+                    None => memchr::memchr(b'\n', &src[i..]).map_or(n, |p| i + p),
+                };
+            }
+            b'[' if long_open(i).is_some() => {
+                let level = long_open(i).unwrap_or(0);
+                i = long_close(i + 2 + level, level);
+            }
+            q @ (b'"' | b'\'' | b'`') => {
+                i += 1;
+                while i < n && src[i] != q && src[i] != b'\n' {
+                    i += if src[i] == b'\\' { 2 } else { 1 };
+                }
+                i += 1;
+            }
+            b'@' => {
+                let Some(mut end) = luau_attribute_end(src, i) else {
+                    i += 1;
+                    continue;
+                };
+                loop {
+                    let ws = src[end..]
+                        .iter()
+                        .take_while(|&&b| b == b' ' || b == b'\t')
+                        .count();
+                    match luau_attribute_end(src, end + ws) {
+                        Some(e) => end = e,
+                        None => break,
+                    }
+                }
+                let rest = &src[end..];
+                let ws = rest
+                    .iter()
+                    .take_while(|&&b| b == b' ' || b == b'\t' || b == b'\r')
+                    .count();
+                let alone =
+                    matches!(rest.get(ws), None | Some(b'\n')) || rest[ws..].starts_with(b"--");
+                let buf = out.get_or_insert_with(|| src.to_vec());
+                if alone {
+                    buf[i] = b'-';
+                    buf[i + 1] = b'-';
+                    i = memchr::memchr(b'\n', &src[i..]).map_or(n, |p| i + p);
+                } else {
+                    buf[i..end].fill(b' ');
+                    i = end;
+                }
+            }
+            _ => i += 1,
+        }
+    }
+    out
+}
+
+/// End of a Luau attribute starting at `i` (`@name` or `@[...]` on one line).
+fn luau_attribute_end(src: &[u8], i: usize) -> Option<usize> {
+    if src.get(i) != Some(&b'@') {
         return None;
     }
+    let n = src.len();
+    let mut j = i + 1;
+    if src.get(j) == Some(&b'[') {
+        let mut depth = 0usize;
+        while j < n && src[j] != b'\n' {
+            match src[j] {
+                b'[' => depth += 1,
+                b']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(j + 1);
+                    }
+                }
+                _ => {}
+            }
+            j += 1;
+        }
+        return None;
+    }
+    if !src
+        .get(j)
+        .is_some_and(|b| b.is_ascii_alphabetic() || *b == b'_')
+    {
+        return None;
+    }
+    while j < n && (src[j].is_ascii_alphanumeric() || src[j] == b'_') {
+        j += 1;
+    }
+    Some(j)
+}
+
+/// Source with constructs the grammar cannot parse blanked in place.
+fn sanitize(lang: LangId, src: &[u8]) -> Option<Vec<u8>> {
+    match lang {
+        LangId::ObjC | LangId::C | LangId::Cpp => sanitize_apple_macros(src),
+        LangId::Luau => sanitize_luau_attributes(src),
+        _ => None,
+    }
+}
+
+fn parse_with(lang: LangId, src: &[u8]) -> Option<tree_sitter::Tree> {
     let grammar = lang.grammar()?;
-    let cleaned = if matches!(lang, LangId::ObjC | LangId::C | LangId::Cpp) {
-        sanitize_apple_macros(src)
-    } else {
-        None
-    };
-    let src: &[u8] = cleaned.as_deref().unwrap_or(src);
     PARSERS.with(|cell| {
         let mut parsers = cell.borrow_mut();
         let idx = match parsers.iter().position(|(l, _)| *l == lang) {
@@ -367,30 +501,41 @@ pub fn parse_tree(lang: LangId, src: &[u8]) -> Option<tree_sitter::Tree> {
     })
 }
 
+/// The tree, the sanitized source it was parsed from (if any) and the
+/// grammar used. A `.lua` file that Lua cannot parse but Luau can is Luau
+/// (Roblox projects often keep Luau in `.lua` files).
+fn parse_best(lang: LangId, src: &[u8]) -> Option<(tree_sitter::Tree, Option<Vec<u8>>, LangId)> {
+    if lang.is_structured_data() {
+        return None;
+    }
+    let cleaned = sanitize(lang, src);
+    let tree = parse_with(lang, cleaned.as_deref().unwrap_or(src))?;
+    if lang == LangId::Lua && tree.root_node().has_error() {
+        let luau = sanitize(LangId::Luau, src);
+        if let Some(t) = parse_with(LangId::Luau, luau.as_deref().unwrap_or(src))
+            && !t.root_node().has_error()
+        {
+            return Some((t, luau, LangId::Luau));
+        }
+    }
+    Some((tree, cleaned, lang))
+}
+
+/// Parse `src` into a syntax tree (code languages only). Byte offsets match
+/// `src` exactly (Apple SDK macros and Luau attributes are blanked in place,
+/// not removed).
+pub fn parse_tree(lang: LangId, src: &[u8]) -> Option<tree_sitter::Tree> {
+    parse_best(lang, src).map(|(tree, _, _)| tree)
+}
+
+/// Parse `src` and extract its outline. Returns `None` if the language has no
+/// grammar or parsing failed.
 pub fn parse_outline(lang: LangId, src: &[u8], lines: &[u32]) -> Option<Outline> {
     if lang.is_structured_data() {
         return Some(crate::structured::outline(lang, src, lines));
     }
-    let grammar = lang.grammar()?;
-    let cleaned = if matches!(lang, LangId::ObjC | LangId::C | LangId::Cpp) {
-        sanitize_apple_macros(src)
-    } else {
-        None
-    };
+    let (tree, cleaned, lang) = parse_best(lang, src)?;
     let src: &[u8] = cleaned.as_deref().unwrap_or(src);
-    let tree = PARSERS.with(|cell| {
-        let mut parsers = cell.borrow_mut();
-        let idx = match parsers.iter().position(|(l, _)| *l == lang) {
-            Some(i) => i,
-            None => {
-                let mut p = Parser::new();
-                p.set_language(&grammar).ok()?;
-                parsers.push((lang, p));
-                parsers.len() - 1
-            }
-        };
-        parsers[idx].1.parse(src, None)
-    })?;
     let mut ex = Extractor {
         lang,
         src,
@@ -406,6 +551,7 @@ pub fn parse_outline(lang: LangId, src: &[u8], lines: &[u32]) -> Option<Outline>
     Some(Outline {
         symbols: ex.syms,
         elide: ex.elide,
+        luau: lang == LangId::Luau,
     })
 }
 
@@ -504,7 +650,7 @@ impl<'a> Extractor<'a> {
     fn comment_prefix(&self) -> &'static str {
         match self.lang {
             LangId::Python | LangId::Ruby | LangId::Bash => "#",
-            LangId::Lua => "--",
+            LangId::Lua | LangId::Luau => "--",
             _ => "//",
         }
     }
@@ -597,7 +743,7 @@ impl<'a> Extractor<'a> {
             LangId::Swift => self.swift(n, k, parent),
             LangId::Kotlin => self.kotlin(n, k, parent),
             LangId::Scala => self.scala(n, k, parent),
-            LangId::Lua => self.lua(n, k),
+            LangId::Lua | LangId::Luau => self.lua(n, k),
             LangId::Markdown | LangId::Json | LangId::Yaml | LangId::Toml => None,
         }
     }
@@ -1190,38 +1336,129 @@ impl<'a> Extractor<'a> {
         }
     }
 
+    /// Lua and Luau: `function M.f()` and `M.f = function()` are functions
+    /// scoped to `M`; `function C:m()` is a method of `C`.
     fn lua<'t>(&self, n: Node<'t>, k: &str) -> Option<Def<'t>> {
         match k {
-            "function_declaration" => self.simple(n, Kind::Function, false),
+            "function_declaration" => {
+                let (scope, name, method) = self.lua_name(n.child_by_field_name("name")?);
+                let kind = if method { Kind::Method } else { Kind::Function };
+                let mut d = self.with_name(n, kind, false, name);
+                d.scope = scope;
+                Some(d)
+            }
             "assignment_statement" | "variable_declaration" => {
-                // `M.foo = function(...) ... end`
-                let mut c = n.walk();
-                let kids: Vec<Node<'t>> = n.named_children(&mut c).collect();
-                let (vars, vals) = if n.kind() == "variable_declaration" {
-                    let inner = kids.first()?;
-                    if inner.kind() != "assignment_statement" {
-                        return None;
-                    }
-                    let mut c2 = inner.walk();
-                    let ik: Vec<Node<'t>> = inner.named_children(&mut c2).collect();
-                    (ik.first().copied()?, ik.get(1).copied()?)
+                // `M.foo = function(...) ... end`, `local foo = function(...) ... end`
+                let assign = if k == "variable_declaration" {
+                    n.named_child(0)
+                        .filter(|c| c.kind() == "assignment_statement")?
                 } else {
-                    (kids.first().copied()?, kids.get(1).copied()?)
+                    n
                 };
+                let vars = assign.named_child(0)?;
+                let vals = assign.named_child(1)?;
                 let func = if vals.kind() == "function_definition" {
                     vals
                 } else {
                     vals.named_child(0)
                         .filter(|f| f.kind() == "function_definition")?
                 };
-                let name = clip(&squash(self.text(vars)), MAX_NAME);
-                let mut d = self.with_name(n, Kind::Function, false, name);
+                let target = vars.child_by_field_name("name").unwrap_or(vars);
+                let (scope, name, method) = self.lua_name(target);
+                let kind = if method { Kind::Method } else { Kind::Function };
+                let mut d = self.with_name(n, kind, false, name);
+                d.scope = scope;
                 d.body = func.child_by_field_name("body");
                 d.last = n;
                 Some(d)
             }
+            "field" => {
+                // `local M = { run = function(cfg) ... end }`
+                let func = n
+                    .child_by_field_name("value")
+                    .filter(|v| v.kind() == "function_definition")?;
+                let key = n
+                    .child_by_field_name("name")
+                    .filter(|c| c.kind() == "identifier")?;
+                let name = clip(self.text(key), MAX_NAME);
+                let mut d = self.with_name(n, Kind::Function, false, name);
+                d.scope = n.parent().and_then(|t| self.lua_table_owner(t));
+                d.body = func.child_by_field_name("body");
+                Some(d)
+            }
+            // Luau `type Name<T> = ...` / `export type Name = {...}`
+            "type_definition" => {
+                let name = strip_generics(self.text(n.child_by_field_name("name")?));
+                if name.is_empty() {
+                    return None;
+                }
+                let mut d = self.with_name(n, Kind::Type, false, clip(name, MAX_NAME));
+                // A table type spanning lines is the body: the label stops before it.
+                let mut c = n.walk();
+                d.body = n
+                    .named_children(&mut c)
+                    .find(|t| t.kind() == "object_type" && end_row(*t) > t.start_position().row);
+                Some(d)
+            }
             _ => None,
         }
+    }
+
+    /// `M.a.b` → scope `M.a`, name `b`; `C:m` → scope `C`, name `m`, a method.
+    fn lua_name(&self, target: Node<'_>) -> (Option<String>, String, bool) {
+        let part = |field: &str| {
+            target
+                .child_by_field_name(field)
+                .map(|c| clip(&squash(self.text(c)), MAX_NAME))
+        };
+        let split = match target.kind() {
+            "dot_index_expression" => part("table").zip(part("field")).map(|p| (p, false)),
+            "method_index_expression" => part("table").zip(part("method")).map(|p| (p, true)),
+            _ => None,
+        };
+        match split {
+            Some(((table, name), method)) => (Some(table), name, method),
+            None => (None, clip(&squash(self.text(target)), MAX_NAME), false),
+        }
+    }
+
+    /// The name a table constructor is bound to (`local M = {...}`, a field
+    /// of such a table, ...), or `None` for anonymous tables.
+    fn lua_table_owner(&self, mut table: Node<'_>) -> Option<String> {
+        let mut keys: Vec<&str> = Vec::new();
+        for _ in 0..8 {
+            if table.kind() != "table_constructor" {
+                break;
+            }
+            let Some(p) = table.parent() else { break };
+            match p.kind() {
+                "field" => {
+                    let key = p
+                        .child_by_field_name("name")
+                        .filter(|c| c.kind() == "identifier")?;
+                    keys.push(self.text(key));
+                    table = p.parent()?;
+                }
+                "expression_list" => {
+                    if p.named_child(0).map(|v| v.id()) == Some(table.id())
+                        && let Some(target) = p
+                            .parent()
+                            .filter(|a| a.kind() == "assignment_statement")
+                            .and_then(|a| a.named_child(0))
+                            .and_then(|v| v.child_by_field_name("name"))
+                    {
+                        keys.push(self.text(target));
+                    }
+                    break;
+                }
+                _ => break,
+            }
+        }
+        if keys.is_empty() {
+            return None;
+        }
+        keys.reverse();
+        Some(clip(&squash(&keys.join(".")), MAX_NAME))
     }
 
     /// Long docstring as the first statement of `block`: keep its first line.
@@ -1564,4 +1801,49 @@ fn make_label(raw: &[u8], comment: &str) -> String {
         .replace("[ ", "[")
         .replace(" ]", "]");
     clip(&l, MAX_LABEL)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn luau_attributes_are_blanked_only_in_code() {
+        let src = "@native\n\
+local f = @checked function() end\n\
+-- @native\n\
+local s = \"@native\" .. '@x' .. [[@native]] .. `@{a}@native`\n\
+--[==[\n@native\n]==]\n\
+local t = [=[\n@native\n]=]\n\
+@[deprecated] @native -- note\n";
+        let out = String::from_utf8(sanitize_luau_attributes(src.as_bytes()).unwrap()).unwrap();
+        let want = src
+            .replacen("@native\nlocal f", "--ative\nlocal f", 1)
+            .replace("@checked", &" ".repeat(8))
+            .replace("@[deprecated] @native", "--deprecated] @native");
+        assert_eq!(out, want);
+        assert!(sanitize_luau_attributes(b"local s = 'a@b' -- @c\n").is_none());
+    }
+
+    #[test]
+    fn lua_files_that_only_parse_as_luau_are_luau() {
+        // A cast and parameter types on their own lines escape `.lua` sniffing.
+        let src = b"local Dash = require(script.Dash) :: any\n\nlocal function add(\n\tx: number,\n\ty: number\n): number\n\treturn x + y\nend\n\nreturn add\n";
+        let path = std::path::Path::new("init.lua");
+        assert_eq!(crate::lang::detect(path, src), Some(LangId::Lua));
+        assert!(
+            !parse_tree(LangId::Lua, src)
+                .unwrap()
+                .root_node()
+                .has_error()
+        );
+        let o = parse_outline(LangId::Lua, src, &crate::source::line_starts(src)).unwrap();
+        assert!(o.luau);
+        let add = &o.symbols[o.find("add")[0]];
+        assert_eq!((add.start, add.end), (2, 7));
+        // Valid Lua is not re-parsed: Luau has no `goto`, Lua does.
+        let src = b"for i = 1, 3 do\n  if i == 2 then goto continue end\n  ::continue::\nend\nlocal function f() return 1 end\n";
+        let tree = parse_tree(LangId::Lua, src).unwrap();
+        assert!(!tree.root_node().has_error());
+    }
 }
