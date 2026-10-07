@@ -505,6 +505,15 @@ impl Ctx<'_> {
                 cur = s.parent.map(|p| p as usize);
             }
         }
+        // No symbol around the line (no grammar, or top-level code): the
+        // enclosing block by indentation and closers.
+        if let Some(blk) = crate::block::enclosing(|i| src.line(i), n, line1 - 1) {
+            let mut item = self.lines_item(src, disp, blk.start + 1, Some(blk.end + 1));
+            if let Body::Doc(d) = &mut item.body {
+                d.title = Some(blk.title);
+            }
+            return item;
+        }
         let a = line1.saturating_sub(40).max(1);
         let b = (line1 + 40).min(n);
         self.lines_item(src, disp, a, Some(b))

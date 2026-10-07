@@ -444,3 +444,49 @@ fn keys_with_colons_are_found_in_large_workspaces() {
     assert!(out.starts_with("==> package.json:3-3 @"), "{out}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn line_targets_outside_symbols_read_the_enclosing_block() {
+    let dir = std::env::temp_dir().join(format!("speedread-blocks-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    // Top-level code in a language with a grammar, and a language without one.
+    std::fs::write(
+        dir.join("main.client.luau"),
+        "local Players = game:GetService(\"Players\")\n\nPlayers.PlayerAdded:Connect(function(player)\n\tlocal name = player.Name\n\tprint(name)\nend)\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("greeter.ex"),
+        "defmodule Greeter do\n  # Says hello.\n  def hello(name) do\n    \"hello \" <> name\n  end\nend\n",
+    )
+    .unwrap();
+
+    let mut c = Client::start(&dir);
+    c.rpc(
+        "initialize",
+        json!({"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}),
+    );
+    c.send(json!({"jsonrpc": "2.0", "method": "notifications/initialized"}));
+
+    let out = c.call(
+        "read",
+        json!({"targets": ["main.client.luau:5", "greeter.ex:4", "main.client.luau:1"]}),
+    );
+    // The block around the line, titled by its first line.
+    assert!(
+        out.contains("==> main.client.luau:3-6 @")
+            && out.contains("(6 lines) Players.PlayerAdded:Connect(function(player)\n3\t"),
+        "{out}"
+    );
+    // A definition with its comment, not the whole module.
+    assert!(
+        out.contains("==> greeter.ex:2-5 @")
+            && out.contains("def hello(name) do\n2\t  # Says hello."),
+        "{out}"
+    );
+    // A top-level line outside any block keeps the window around it.
+    assert!(out.contains("==> main.client.luau:1-6 @"), "{out}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

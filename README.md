@@ -94,7 +94,7 @@ One call takes any mix of targets. They share one token budget (default 8,000).
 | Target | Returns |
 |---|---|
 | `src/app.ts` | The whole file. If it doesn't fit, a **skeleton**: signatures, types and docs, with bodies collapsed as `A-B ⋯`. If that's still too big, an **outline**. Never a blind cut. |
-| `src/app.ts:120-180`, `src/app.ts:120` | Those lines; a single line (or `file:line:col` from a compiler error) returns the enclosing function or class. |
+| `src/app.ts:120-180`, `src/app.ts:120` | Those lines; a single line (or `file:line:col` from a compiler error) returns the enclosing function or class. Outside any symbol (top-level code, or a language without a grammar), it returns the enclosing block, found from indentation and closing lines such as `end` and `}`. |
 | `src/app.ts#handleRequest`, `#Server.start` | That symbol's full source, including docs and decorators. `#Name` alone finds the definition anywhere. |
 | `README.md#Install`, `package.json#scripts` | A Markdown section, or a JSON, YAML or TOML key. |
 | `src/**/*.test.ts` | A glob (.gitignore-aware); large sets degrade largest-first. |

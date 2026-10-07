@@ -40,6 +40,7 @@ Two debugging aids: `speedread debug <file> --sexp` prints a file's parsed symbo
 | `src/server.rs` | MCP server: the four tools, their argument schemas, and the model-facing instructions and descriptions |
 | `src/main.rs` | CLI, mirroring the tools, plus `symbols` and JSON Lines output |
 | `src/read.rs` | target parsing (`path:A-B`, `#Symbol`, globs, `@etag`) and the budget ladder |
+| `src/block.rs` | the enclosing block around a line when no symbol encloses it (indentation and closers) |
 | `src/render.rs` | line-number format, skeletons, comment and import folding |
 | `src/outline.rs` | tree-sitter symbol extraction, per language |
 | `src/structured.rs` | Markdown, JSON, YAML and TOML outlines |
