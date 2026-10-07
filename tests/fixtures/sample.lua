@@ -19,4 +19,20 @@ M.run = function(cfg)
   return v
 end
 
+local Account = {}
+Account.__index = Account
+
+function Account:deposit(v)
+  self.balance = self.balance + v
+  print(self.balance)
+  return self.balance
+end
+
+local handlers = {
+  on_join = function(p)
+    print(p)
+    return p
+  end,
+}
+
 return M

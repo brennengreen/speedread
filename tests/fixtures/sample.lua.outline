@@ -1,3 +1,5 @@
 Function M.add 3-8 ⋯5-7 | function M.add(a, b)
 Function helper 10-14 ⋯11-13 | local function helper(x)
 Function M.run 16-20 ⋯17-19 | M.run = function(cfg)
+Method Account.deposit 25-29 ⋯26-28 | function Account:deposit(v)
+Function handlers.on_join 32-35 | on_join = function(p)

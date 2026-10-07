@@ -297,3 +297,196 @@ fn client_roots_become_the_workspace() {
     assert!(text.starts_with("==> src/main.rs:1-3 @"), "{text}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn luau_symbols_and_trace() {
+    let dir = std::env::temp_dir().join(format!("speedread-luau-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(
+        dir.join("src/Account.luau"),
+        "--!strict\nlocal Account = {}\nAccount.__index = Account\n\nfunction Account.new(owner: string)\n\tlocal self = setmetatable({}, Account)\n\tself.balance = 0\n\treturn self\nend\n\n@native\nfunction Account:deposit(amount: number)\n\tself.balance += amount\nend\n\nreturn Account\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("src/Bank.luau"),
+        "local Account = require(script.Parent.Account)\n\nlocal Bank = {}\n\nfunction Bank.open(name: string)\n\tlocal acct = Account.new(name)\n\tacct:deposit(5)\n\treturn acct\nend\n\ngame.Players.PlayerAdded:Connect(function(player)\n\tlocal acct = Bank.open(player.Name)\n\tacct:deposit(1)\nend)\n\nfunction Bank.spawn(name: string)\n\treturn Bank.open(name)\nend\n\ntask.spawn(function()\n\tBank.spawn(\"b\")\nend)\n\nreturn Bank\n",
+    )
+    .unwrap();
+    // Roblox globals called next to a type annotation naming them, and in a
+    // `.lua` file that only Luau parses (`+=`).
+    std::fs::write(
+        dir.join("src/Place.luau"),
+        "local function place()\n\tlocal pos: Vector3 = Vector3.new(0, 1, 0)\n\treturn pos\nend\n\nreturn place\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("src/Tick.lua"),
+        "local count = 0\n\nlocal function tick()\n\tcount += 1\n\ttask.spawn(function() end)\nend\n\nreturn tick\n",
+    )
+    .unwrap();
+    let mut c = Client::start(&dir);
+    c.rpc(
+        "initialize",
+        json!({"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}),
+    );
+    c.send(json!({"jsonrpc": "2.0", "method": "notifications/initialized"}));
+
+    // A Luau method by `#Class:method`, `path#Class.method` or `#method`, with its attribute.
+    for t in [
+        "#Account:deposit",
+        "src/Account.luau#Account.deposit",
+        "#deposit",
+    ] {
+        let out = c.call("read", json!({"targets": [t]}));
+        assert!(
+            out.starts_with("==> src/Account.luau:11-14 @") && out.contains("11\t@native\n"),
+            "{t}: {out}"
+        );
+    }
+
+    // `obj:method()` calls resolve to the method, across files and at top level.
+    let out = c.call("trace", json!({"target": "#Account:deposit"}));
+    assert!(out.contains("2 call sites"), "{out}");
+    assert!(
+        out.contains("[5-9] function Bank.open(name: string)\n    7\tacct:deposit(5)"),
+        "{out}"
+    );
+    let out = c.call("trace", json!({"target": "#Account.new"}));
+    assert!(out.contains("1 call site"), "{out}");
+    assert!(!out.contains("Vector3"), "{out}");
+    // `task.spawn(...)` is Luau's task library, not a call to `Bank.spawn`.
+    let out = c.call("trace", json!({"target": "#Bank.spawn"}));
+    assert!(
+        out.contains("1 call site") && out.contains("21\tBank.spawn(\"b\")"),
+        "{out}"
+    );
+    assert!(!out.contains("task.spawn"), "{out}");
+    let out = c.call(
+        "trace",
+        json!({"target": "src/Bank.luau#open", "direction": "callees"}),
+    );
+    assert!(
+        out.contains("→ src/Account.luau:5-9 function Account.new(owner: string)"),
+        "{out}"
+    );
+    assert!(
+        out.contains("→ src/Account.luau:11-14 function Account:deposit(amount: number)"),
+        "{out}"
+    );
+
+    // Search hits are grouped under their function.
+    let out = c.call("search", json!({"pattern": "balance"}));
+    assert!(
+        out.contains("[11-14] function Account:deposit(amount: number)\n13\t"),
+        "{out}"
+    );
+
+    // Lua modules are mostly all `M`: a file's own `M.new()` is not a call to
+    // another file's, and a local `vector` module is not a library.
+    std::fs::create_dir_all(dir.join("lua")).unwrap();
+    for f in ["a", "b"] {
+        std::fs::write(
+            dir.join(format!("lua/{f}.lua")),
+            "local M = {}\n\nfunction M.new()\n  return {}\nend\n\nfunction M.copy()\n  return M.new()\nend\n\nreturn M\n",
+        )
+        .unwrap();
+    }
+    let out = c.call("trace", json!({"target": "lua/a.lua#new"}));
+    assert!(
+        out.contains("1 call site") && out.contains("lua/a.lua\n  [7-9] function M.copy()"),
+        "{out}"
+    );
+    std::fs::write(
+        dir.join("lua/vector.lua"),
+        "local function create(x, y)\n  return { x = x, y = y }\nend\n\nreturn { create = create }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("lua/main.lua"),
+        "local vector = require(\"vector\")\n\nfunction spawn()\n  return vector.create(1, 2)\nend\n",
+    )
+    .unwrap();
+    let out = c.call("trace", json!({"target": "lua/vector.lua#create"}));
+    assert!(
+        out.contains("[3-5] function spawn()\n    4\treturn vector.create(1, 2)"),
+        "{out}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn keys_with_colons_are_found_in_large_workspaces() {
+    let dir = std::env::temp_dir().join(format!("speedread-keys-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(
+        dir.join("package.json"),
+        "{\n  \"scripts\": {\n    \"test:unit\": \"vitest run\"\n  }\n}\n",
+    )
+    .unwrap();
+    // Over 200 files mention the name, so definitions are prefiltered.
+    for i in 0..210 {
+        std::fs::write(
+            dir.join(format!("src/f{i}.js")),
+            format!("// unit test helper\nexport const value{i} = 1;\n"),
+        )
+        .unwrap();
+    }
+    let mut c = Client::start(&dir);
+    c.rpc(
+        "initialize",
+        json!({"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}),
+    );
+    c.send(json!({"jsonrpc": "2.0", "method": "notifications/initialized"}));
+    let out = c.call("read", json!({"targets": ["#test:unit"]}));
+    assert!(out.starts_with("==> package.json:3-3 @"), "{out}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn line_targets_outside_symbols_read_the_enclosing_block() {
+    let dir = std::env::temp_dir().join(format!("speedread-blocks-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    // Top-level code in a language with a grammar, and a language without one.
+    std::fs::write(
+        dir.join("main.client.luau"),
+        "local Players = game:GetService(\"Players\")\n\nPlayers.PlayerAdded:Connect(function(player)\n\tlocal name = player.Name\n\tprint(name)\nend)\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("greeter.ex"),
+        "defmodule Greeter do\n  # Says hello.\n  def hello(name) do\n    \"hello \" <> name\n  end\nend\n",
+    )
+    .unwrap();
+
+    let mut c = Client::start(&dir);
+    c.rpc(
+        "initialize",
+        json!({"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}),
+    );
+    c.send(json!({"jsonrpc": "2.0", "method": "notifications/initialized"}));
+
+    let out = c.call(
+        "read",
+        json!({"targets": ["main.client.luau:5", "greeter.ex:4", "main.client.luau:1"]}),
+    );
+    // The block around the line, titled by its first line.
+    assert!(
+        out.contains("==> main.client.luau:3-6 @")
+            && out.contains("(6 lines) Players.PlayerAdded:Connect(function(player)\n3\t"),
+        "{out}"
+    );
+    // A definition with its comment, not the whole module.
+    assert!(
+        out.contains("==> greeter.ex:2-5 @")
+            && out.contains("def hello(name) do\n2\t  # Says hello."),
+        "{out}"
+    );
+    // A top-level line outside any block keeps the window around it.
+    assert!(out.contains("==> main.client.luau:1-6 @"), "{out}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

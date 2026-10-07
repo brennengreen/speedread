@@ -602,12 +602,13 @@ fn textual_call(line: &[u8], mut k: usize) -> bool {
 
 /// Receiver before a name: `None` (unqualified), `Some("")` (an expression
 /// such as `f().x`), or `Some(ident)` for `ident.name` / `ident::name` /
-/// `ident->name`.
-fn qualifier_before(line: &[u8], col: usize) -> Option<String> {
+/// `ident->name` / Lua's `ident:name`.
+fn qualifier_before(line: &[u8], col: usize, lang: Option<LangId>) -> Option<String> {
+    let lua = matches!(lang, Some(LangId::Lua | LangId::Luau));
     let mut k = col;
     if k >= 2 && matches!(&line[k - 2..k], b"::" | b"->" | b"?.") {
         k -= 2;
-    } else if k >= 1 && line[k - 1] == b'.' {
+    } else if k >= 1 && (line[k - 1] == b'.' || (lua && line[k - 1] == b':')) {
         k -= 1;
     } else {
         return None;
@@ -757,7 +758,7 @@ fn classify_file(e: &Engine, f: &crate::search::FileHits, names: &[String]) -> O
                     line0,
                     col,
                     kind,
-                    qualifier: qualifier_before(text, col),
+                    qualifier: qualifier_before(text, col, src.lang),
                 });
             }
         }
@@ -773,6 +774,97 @@ enum Attr {
     Target,
     Other,
     Unknown,
+}
+
+/// Lua's standard libraries: `table.insert(...)` is not a workspace `insert`.
+const LUA_LIBRARIES: &[&str] = &[
+    "table",
+    "string",
+    "math",
+    "os",
+    "io",
+    "coroutine",
+    "debug",
+    "utf8",
+    "bit32",
+];
+
+/// Luau libraries and Roblox globals, in Luau files only.
+const LUAU_GLOBALS: &[&str] = &[
+    "buffer",
+    "task",
+    "vector",
+    "game",
+    "workspace",
+    "Instance",
+    "Vector3",
+    "Vector2",
+    "CFrame",
+    "Color3",
+    "UDim",
+    "UDim2",
+    "TweenInfo",
+    "Enum",
+    "BrickColor",
+    "NumberRange",
+    "NumberSequence",
+    "NumberSequenceKeypoint",
+    "ColorSequence",
+    "ColorSequenceKeypoint",
+    "Ray",
+    "Rect",
+    "Region3",
+    "Random",
+    "DateTime",
+    "Font",
+    "RaycastParams",
+    "OverlapParams",
+    "PhysicalProperties",
+    "SharedTable",
+];
+
+/// A call through a Lua global library such as `table.insert(...)` or
+/// `task.spawn(...)` (Luau's and Roblox's globals in files parsed as Luau),
+/// unless the file declares a local of that name, as in
+/// `local vector = require("vector")`. Workspace modules of the same name
+/// are matched by owner before this applies.
+fn lua_global(src: &Source, o: Option<&Outline>, qualifier: &str) -> bool {
+    let luau = src.lang == Some(LangId::Luau) || o.is_some_and(|o| o.luau);
+    let known = matches!(src.lang, Some(LangId::Lua | LangId::Luau))
+        && (LUA_LIBRARIES.contains(&qualifier) || (luau && LUAU_GLOBALS.contains(&qualifier)));
+    known && !binds_locally(&src.data, qualifier)
+}
+
+/// `local name`, `local a, name` or `local function name` in a Lua file (not
+/// a type annotation such as `local p: name`).
+fn binds_locally(data: &[u8], name: &str) -> bool {
+    let n = name.as_bytes();
+    memchr::memmem::find_iter(data, n).any(|i| {
+        let after = data.get(i + n.len()).copied().unwrap_or(b' ');
+        if is_word(after) || (i > 0 && is_word(data[i - 1])) {
+            return false;
+        }
+        let line_start = data[..i]
+            .iter()
+            .rposition(|&b| b == b'\n')
+            .map_or(0, |p| p + 1);
+        let Some(rest) = data[line_start..i]
+            .trim_ascii_start()
+            .strip_prefix(b"local")
+        else {
+            return false;
+        };
+        if !rest.first().is_some_and(u8::is_ascii_whitespace) {
+            return false;
+        }
+        let names = rest.trim_ascii();
+        names.is_empty()
+            || names == b"function"
+            || (names.ends_with(b",")
+                && names
+                    .iter()
+                    .all(|&b| is_word(b) || b == b',' || b.is_ascii_whitespace()))
+    })
 }
 
 fn implicit_self(lang: Option<LangId>) -> bool {
@@ -793,10 +885,25 @@ fn implicit_self(lang: Option<LangId>) -> bool {
 
 fn attribute(occ: &Occ, f: &FileScan, t: &Info, others: &[Info]) -> Attr {
     let go = t.lang == Some(LangId::Go) && f.src.lang == Some(LangId::Go);
+    let lua = matches!(f.src.lang, Some(LangId::Lua | LangId::Luau));
+    // Lua modules are mostly all `M` (or `module`): in a file that defines
+    // its own `M.f`, `M.f()` calls that one.
+    let own = |owner: &str| -> Attr {
+        if lua
+            && f.src.path != t.path
+            && others
+                .iter()
+                .any(|o| o.path == f.src.path && o.owner.as_deref() == Some(owner))
+        {
+            Attr::Other
+        } else {
+            Attr::Target
+        }
+    };
     let here = f.o.as_deref().and_then(|o| type_at(o, occ.line0));
     let owner_is = |ow: &Option<String>| -> Attr {
         match ow {
-            Some(w) if t.owner.as_deref() == Some(w.as_str()) => Attr::Target,
+            Some(w) if t.owner.as_deref() == Some(w.as_str()) => own(w),
             Some(w)
                 if others
                     .iter()
@@ -812,7 +919,9 @@ fn attribute(occ: &Occ, f: &FileScan, t: &Info, others: &[Info]) -> Attr {
         Some("self" | "this" | "Self" | "cls" | "static" | "$this") => owner_is(&here),
         Some("super") => Attr::Unknown,
         Some(q) if !q.is_empty() => {
-            if t.owner.as_deref() == Some(q) || (go && t.package.as_deref() == Some(q)) {
+            if t.owner.as_deref() == Some(q) {
+                own(q)
+            } else if go && t.package.as_deref() == Some(q) {
                 Attr::Target
             } else if others
                 .iter()
@@ -821,6 +930,8 @@ fn attribute(occ: &Occ, f: &FileScan, t: &Info, others: &[Info]) -> Attr {
                 Attr::Other
             } else if go && !t.is_method() {
                 // `x.F()` is a method call or another package's F.
+                Attr::Other
+            } else if lua && lua_global(&f.src, f.o.as_deref(), q) {
                 Attr::Other
             } else {
                 Attr::Unknown
@@ -853,6 +964,7 @@ fn attribute(occ: &Occ, f: &FileScan, t: &Info, others: &[Info]) -> Attr {
                             | LangId::Tsx
                             | LangId::Php
                             | LangId::Lua
+                            | LangId::Luau
                     )
                 ) && !matches!(t.kind, Kind::Class | Kind::Struct | Kind::Enum)
                 {
@@ -1137,7 +1249,7 @@ fn calls_in(d: &Def) -> Vec<Callee> {
             let line0 = n.start_position().row as u32;
             let line_start = src.offset_of_line(line0 as usize);
             let q = if cs >= line_start {
-                qualifier_before(src.line(line0 as usize), cs - line_start)
+                qualifier_before(src.line(line0 as usize), cs - line_start, Some(lang))
             } else {
                 None
             };
@@ -1171,6 +1283,14 @@ fn resolve_callee<'a>(c: &Callee, caller: &Def, cands: &'a [Def]) -> Vec<&'a Def
             is_callable(k) || k.is_type_like() || k == Kind::Property || k == Kind::Const
         })
         .collect();
+    if let Some(q) = c.qualifier.as_deref()
+        && lua_global(&caller.src, Some(&caller.o), q)
+    {
+        return callable
+            .into_iter()
+            .filter(|d| d.info().owner.as_deref() == Some(q))
+            .collect();
+    }
     if callable.len() <= 1 {
         return callable;
     }

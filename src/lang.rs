@@ -23,6 +23,7 @@ pub enum LangId {
     Kotlin,
     Scala,
     Lua,
+    Luau,
     ObjC,
     Markdown,
     Json,
@@ -50,6 +51,7 @@ impl LangId {
             LangId::Kotlin => "kotlin",
             LangId::Scala => "scala",
             LangId::Lua => "lua",
+            LangId::Luau => "luau",
             LangId::ObjC => "objc",
             LangId::Markdown => "markdown",
             LangId::Json => "json",
@@ -78,6 +80,7 @@ impl LangId {
             LangId::Kotlin => tree_sitter_kotlin_ng::LANGUAGE.into(),
             LangId::Scala => tree_sitter_scala::LANGUAGE.into(),
             LangId::Lua => tree_sitter_lua::LANGUAGE.into(),
+            LangId::Luau => tree_sitter_luau::LANGUAGE.into(),
             LangId::ObjC => tree_sitter_objc::LANGUAGE.into(),
             LangId::Markdown | LangId::Json | LangId::Yaml | LangId::Toml => return None,
         })
@@ -137,7 +140,14 @@ pub fn detect(path: &Path, head: &[u8]) -> Option<LangId> {
         "swift" => LangId::Swift,
         "kt" | "kts" => LangId::Kotlin,
         "scala" | "sc" | "sbt" => LangId::Scala,
-        "lua" => LangId::Lua,
+        "lua" => {
+            if looks_like_luau(head) {
+                LangId::Luau
+            } else {
+                LangId::Lua
+            }
+        }
+        "luau" => LangId::Luau,
         "md" | "markdown" | "mdx" | "mdc" => LangId::Markdown,
         "json" | "jsonc" | "json5" | "geojson" | "webmanifest" | "code-workspace" => LangId::Json,
         "yml" | "yaml" => LangId::Yaml,
@@ -153,6 +163,55 @@ fn looks_like_objc(head: &[u8]) -> bool {
         || memchr::memmem::find(h, b"#import").is_some()
         || memchr::memmem::find(h, b"@protocol").is_some()
         || memchr::memmem::find(h, b"NS_ASSUME_NONNULL").is_some()
+}
+
+/// Luau saved as `.lua` (common in Roblox projects): a `--!strict`-style
+/// directive, a type alias, or a type annotation that plain Lua cannot parse.
+fn looks_like_luau(head: &[u8]) -> bool {
+    fn ident_len(b: &[u8]) -> usize {
+        b.iter()
+            .take_while(|c| c.is_ascii_alphanumeric() || **c == b'_')
+            .count()
+    }
+    fn skip_ws(b: &[u8]) -> &[u8] {
+        let n = b.iter().take_while(|c| **c == b' ' || **c == b'\t').count();
+        &b[n..]
+    }
+    let h = &head[..head.len().min(16 * 1024)];
+    h.split(|&b| b == b'\n').any(|line| {
+        let t = skip_ws(line);
+        if let Some(d) = t.strip_prefix(b"--!") {
+            return ["strict", "nonstrict", "nocheck", "native", "optimize"]
+                .iter()
+                .any(|w| d.starts_with(w.as_bytes()));
+        }
+        let t = t.strip_prefix(b"export ").map_or(t, skip_ws);
+        // `type Name =` / `type Name<T> =`
+        if let Some(r) = t.strip_prefix(b"type ") {
+            let r = skip_ws(r);
+            let n = ident_len(r);
+            return n > 0 && matches!(skip_ws(&r[n..]).first(), Some(b'=' | b'<'));
+        }
+        // `local name: Type`
+        if let Some(r) = t.strip_prefix(b"local ") {
+            let r = skip_ws(r);
+            let n = ident_len(r);
+            if n > 0 && &r[..n] != b"function" {
+                let rest = skip_ws(&r[n..]);
+                return rest.first() == Some(&b':') && rest.get(1) != Some(&b':');
+            }
+        }
+        // `function name(a: Type)`
+        let t = t.strip_prefix(b"local ").map_or(t, skip_ws);
+        if t.starts_with(b"function ")
+            && let Some(open) = memchr::memchr(b'(', t)
+        {
+            let params = &t[open + 1..];
+            let close = memchr::memchr(b')', params).unwrap_or(params.len());
+            return memchr::memchr(b':', &params[..close]).is_some();
+        }
+        false
+    })
 }
 
 fn detect_shebang(head: &[u8]) -> Option<LangId> {
@@ -174,6 +233,7 @@ fn detect_shebang(head: &[u8]) -> Option<LangId> {
         "ruby" => LangId::Ruby,
         "php" => LangId::Php,
         "lua" | "luajit" => LangId::Lua,
+        "luau" | "lune" => LangId::Luau,
         "swift" => LangId::Swift,
         _ => return None,
     })
@@ -203,6 +263,39 @@ mod tests {
         assert_eq!(
             detect(Path::new("deploy"), b"#!/bin/zsh -e\n"),
             Some(LangId::Bash)
+        );
+        assert_eq!(detect(Path::new("init.luau"), b""), Some(LangId::Luau));
+        assert_eq!(
+            detect(Path::new("init.lua"), b"local M = {}\n"),
+            Some(LangId::Lua)
+        );
+        assert_eq!(
+            detect(Path::new("init.lua"), b"--!strict\nlocal M = {}\n"),
+            Some(LangId::Luau)
+        );
+        assert_eq!(
+            detect(Path::new("Types.lua"), b"export type Id = number\n"),
+            Some(LangId::Luau)
+        );
+        assert_eq!(
+            detect(Path::new("a.lua"), b"local function f(x: number)\nend\n"),
+            Some(LangId::Luau)
+        );
+        assert_eq!(
+            detect(Path::new("a.lua"), b"local n: number = 1\n"),
+            Some(LangId::Luau)
+        );
+        // Plain Lua: method definitions, `type(...)` calls, a variable named `type`.
+        assert_eq!(
+            detect(
+                Path::new("a.lua"),
+                b"function A:b(c)\nend\nlocal t = type(x)\ntype = 1\nlocal s = a:b()\n"
+            ),
+            Some(LangId::Lua)
+        );
+        assert_eq!(
+            detect(Path::new("run"), b"#!/usr/bin/env lune\n"),
+            Some(LangId::Luau)
         );
         assert_eq!(detect(Path::new(".gitignore"), b""), None);
         assert_eq!(detect(Path::new("notes.txt"), b""), None);

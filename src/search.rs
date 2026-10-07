@@ -606,6 +606,13 @@ pub fn find_definitions(e: &Engine, query: &str, limit: usize) -> (Vec<DefHit>, 
     let Some(last) = segs.last() else {
         return (Vec::new(), 0);
     };
+    // Files are found by the part before a `:` (`initWithFrame:style:`, a
+    // `"test:unit"` key); a Lua method `Account:deposit` ranks by `deposit`.
+    let name = if crate::outline::lua_method_query(last) {
+        last.rsplit(':').next().unwrap_or(last)
+    } else {
+        last.split(':').next().unwrap_or(last)
+    };
     let last = last.split(':').next().unwrap_or(last);
     if last.is_empty() {
         return (Vec::new(), 0);
@@ -671,7 +678,7 @@ pub fn find_definitions(e: &Engine, query: &str, limit: usize) -> (Vec<DefHit>, 
                     .into_iter()
                     .map(|i| {
                         let s = &o.symbols[i];
-                        let exact = s.name == last;
+                        let exact = s.name == name;
                         let rank = match s.kind {
                             Kind::Class
                             | Kind::Struct
@@ -740,7 +747,7 @@ pub(crate) fn def_line_pattern(names: &[String]) -> String {
     let n = format!("(?:{alt})");
     [
         format!(
-            r"\b(?:fn|func|def|function|class|struct|union|interface|trait|enum|type|typealias|protocol|extension|impl|module|namespace|object|record|actor|macro_rules!|const|static|let|var|val|alias|sub|proc)\s+(?:[\w$]+(?:\.|::))*{n}"
+            r"\b(?:fn|func|def|function|class|struct|union|interface|trait|enum|type|typealias|protocol|extension|impl|module|namespace|object|record|actor|macro_rules!|const|static|let|var|val|alias|sub|proc)\s+(?:[\w$]+(?:\.|::?))*{n}"
         ),
         format!(r"\bfunc\s*\([^)]*\)\s*{n}"),
         format!(r"^\s*(?:[\w$@<>\[\],.*&:?]+\s+)*[*&]?{n}\s*(?:<[^()]*>)?\s*\("),

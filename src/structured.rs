@@ -17,7 +17,7 @@ pub fn outline(lang: LangId, src: &[u8], lines: &[u32]) -> Outline {
     };
     Outline {
         symbols,
-        elide: Vec::new(),
+        ..Default::default()
     }
 }
 

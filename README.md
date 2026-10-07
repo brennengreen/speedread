@@ -94,7 +94,7 @@ One call takes any mix of targets. They share one token budget (default 8,000).
 | Target | Returns |
 |---|---|
 | `src/app.ts` | The whole file. If it doesn't fit, a **skeleton**: signatures, types and docs, with bodies collapsed as `A-B ⋯`. If that's still too big, an **outline**. Never a blind cut. |
-| `src/app.ts:120-180`, `src/app.ts:120` | Those lines; a single line (or `file:line:col` from a compiler error) returns the enclosing function or class. |
+| `src/app.ts:120-180`, `src/app.ts:120` | Those lines; a single line (or `file:line:col` from a compiler error) returns the enclosing function or class. Outside any symbol (top-level code, or a language without a grammar), it returns the enclosing block, found from indentation and closing lines such as `end` and `}`. |
 | `src/app.ts#handleRequest`, `#Server.start` | That symbol's full source, including docs and decorators. `#Name` alone finds the definition anywhere. |
 | `README.md#Install`, `package.json#scripts` | A Markdown section, or a JSON, YAML or TOML key. |
 | `src/**/*.test.ts` | A glob (.gitignore-aware); large sets degrade largest-first. |
@@ -367,7 +367,7 @@ Read-only by construction: there are no write tools. Paths are canonicalized and
 ## How it works
 
 - **Budget ladder.** Each target has four views: full, skeleton, compact skeleton (comment, docstring and import runs folded) and outline. Items degrade largest-first until the batch fits: exploratory targets before requested symbols, and explicit ranges never. A final outline keeps every top-level symbol and fills in members breadth-first. Responses are sized with the content-aware estimate, then checked once more before they're sent. The maximum budget (10k) keeps results inline in every client: Copilot CLI spills results over 30 KB to a file, and Claude Code warns above 10k tokens.
-- **Outlines.** tree-sitter covers Rust, Python, JavaScript, TypeScript/TSX, Go, Java, C, C++, C#, Ruby, PHP, Bash, Swift, Kotlin, Scala, Lua and Objective-C. Single-pass scanners handle Markdown, JSON, YAML and TOML. Apple SDK macros are blanked before parsing Objective-C and C headers; otherwise tree-sitter's error recovery drops the rest of the file.
+- **Outlines.** tree-sitter covers Rust, Python, JavaScript, TypeScript/TSX, Go, Java, C, C++, C#, Ruby, PHP, Bash, Swift, Kotlin, Scala, Lua, Luau (`.luau`, and `.lua` files that use Luau syntax) and Objective-C. Single-pass scanners handle Markdown, JSON, YAML and TOML. Apple SDK macros are blanked before parsing Objective-C and C headers; otherwise tree-sitter's error recovery drops the rest of the file. Luau attributes such as `@native`, which the grammar predates, are blanked the same way.
 - **Caches.** Sources are validated by (size, mtime ns, inode, device) on every access. Outlines are cached by content hash, and the long-lived MCP process keeps both warm.
 - **macOS.**
   - A `getattrlistbulk(2)` walker gets name, type, size, mtime and flags for a batch of entries in one syscall: 1.8× faster than readdir+lstat.
